@@ -1,0 +1,109 @@
+# Brightloop Subscription Management - production stack (Linux host with Docker Engine).
+#   cp .env.example .env   # fill in real values, chmod 600 .env
+#   docker compose up -d --build
+# Dev extras (email catcher):  docker compose --profile dev up -d
+name: brightloop
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+x-backend: &backend
+  build: ./backend
+  image: brightloop-backend:latest
+  env_file: .env
+  environment:
+    DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+  restart: unless-stopped
+  logging: *logging
+
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    # postgres:18+ images keep data under /var/lib/postgresql/<major>/docker: mount the parent.
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    logging: *logging
+    # No published port: the database is reachable only inside this Docker network.
+
+  migrate:
+    <<: *backend
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  backend:
+    <<: *backend
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    <<: *backend
+    command: ["python", "-m", "app.worker"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os, sys, tempfile, time; p = os.path.join(tempfile.gettempdir(), 'brightloop-worker.heartbeat'); sys.exit(0 if time.time() - os.path.getmtime(p) < 120 else 1)"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  frontend:
+    build: ./frontend
+    environment:
+      BACKEND_URL: http://backend:8000
+    restart: unless-stopped
+    logging: *logging
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+    logging: *logging
+    depends_on:
+      - frontend
+      - backend
+
+  mailpit:
+    image: axllent/mailpit:latest
+    profiles: ["dev"]
+    ports:
+      - "127.0.0.1:8025:8025"
+    logging: *logging
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

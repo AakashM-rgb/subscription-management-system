@@ -1,0 +1,58 @@
+name: backend
+
+on:
+  pull_request:
+    paths: ["backend/**", "compose.yaml", "deploy/**", ".github/workflows/backend.yml"]
+  push:
+    branches: [main]
+    paths: ["backend/**", "compose.yaml", "deploy/**", ".github/workflows/backend.yml"]
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: sms
+          POSTGRES_PASSWORD: sms_ci_password
+          POSTGRES_DB: sms_dev
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U sms" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql+psycopg://sms:sms_ci_password@localhost:5432/sms_dev
+      TEST_DATABASE_URL: postgresql+psycopg://sms:sms_ci_password@localhost:5432/sms_test
+      JWT_SECRET: ci-only-secret-0123456789abcdefghijklmnop
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Create test database
+        run: PGPASSWORD=sms_ci_password psql -h localhost -U sms -d sms_dev -c "CREATE DATABASE sms_test"
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - name: Migrations apply, roll back and match the models
+        run: |
+          uv run alembic upgrade head
+          uv run alembic downgrade base
+          uv run alembic upgrade head
+          uv run alembic check
+          test "$(uv run alembic heads | wc -l)" -eq 1
+      - run: uv run pytest
+
+  docker:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate compose file
+        run: cp .env.example .env && docker compose config --quiet
+      - name: Build backend image
+        run: docker build -t brightloop-backend:ci backend
+      - name: Image runs as non-root and contains no .env
+        run: |
+          test "$(docker run --rm brightloop-backend:ci id -u)" != "0"
+          docker run --rm brightloop-backend:ci sh -c 'test ! -e /app/.env'
