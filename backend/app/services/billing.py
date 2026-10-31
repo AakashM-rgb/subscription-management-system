@@ -26,6 +26,7 @@ from app.models import (
     Discount,
     Invoice,
     InvoiceLine,
+    PaymentMandate,
     Subscription,
     SubscriptionLine,
     User,
@@ -175,6 +176,51 @@ def create_invoice_for_period(
     return invoice
 
 
+def autopay_blocker(db: Session, sub: Subscription, invoice: Invoice) -> str | None:
+    """Why this invoice must NOT be auto-confirmed for collection, or None if it may be.
+
+    Collection is only ever started under a valid customer authorisation: autopay switched on,
+    an active mandate of the same customer, and an amount within the mandate limit.
+    """
+    if not sub.auto_collect or sub.mandate_id is None:
+        return "autopay_off"
+    mandate = db.get(PaymentMandate, sub.mandate_id)
+    if mandate is None or mandate.status != "active":
+        return "mandate_not_active"
+    if mandate.customer_id != invoice.customer_id:
+        return "mandate_customer_mismatch"
+    if mandate.max_amount is not None and invoice.amount_total > mandate.max_amount:
+        return "exceeds_mandate_limit"
+    return None
+
+
+def _autopay_confirm(db: Session, sub: Subscription, invoice: Invoice) -> None:
+    """Approved rule: invoices of authorised autopay subscriptions are confirmed automatically
+    (the worker then starts collection); every other invoice stays Draft for staff review."""
+    from app.services import invoices as invoice_svc  # local import: invoices imports billing
+
+    blocker = autopay_blocker(db, sub, invoice)
+    if blocker is None:
+        invoice_svc.confirm(db, invoice, None)
+        audit.record(
+            db,
+            action="invoice.autopay_confirmed",
+            entity_type="invoice",
+            entity_id=invoice.id,
+            actor_type="system",
+            data={"mandate_id": sub.mandate_id},
+        )
+    elif blocker != "autopay_off":
+        audit.record(
+            db,
+            action="invoice.autopay_skipped",
+            entity_type="invoice",
+            entity_id=invoice.id,
+            actor_type="system",
+            data={"reason": blocker, "mandate_id": sub.mandate_id},
+        )
+
+
 def bill_subscription(
     db: Session, sub: Subscription, as_of: date, billing_run_id: int | None = None
 ) -> list[Invoice]:
@@ -192,6 +238,7 @@ def bill_subscription(
         )
         if invoice is not None:
             created.append(invoice)
+            _autopay_confirm(db, sub, invoice)
         sub.next_period_index += 1
         sub.next_invoice_date = period_start(
             sub.start_date, sub.plan.billing_period, sub.next_period_index
