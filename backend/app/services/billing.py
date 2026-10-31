@@ -16,7 +16,7 @@ from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import Connection, Engine, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.config import get_settings
 from app.errors import AppError
@@ -27,6 +27,7 @@ from app.models import (
     Invoice,
     InvoiceLine,
     Subscription,
+    SubscriptionLine,
     User,
 )
 from app.services import audit
@@ -213,6 +214,15 @@ def _due_batch(db: Session, as_of: date, after_id: int, only_id: int | None) -> 
         .limit(BATCH_SIZE)
         .with_for_update(skip_locked=True, of=Subscription)
         .execution_options(populate_existing=True)
+        # Load everything pricing and invoicing need up front (a few queries per batch
+        # instead of several per subscription).
+        .options(
+            selectinload(Subscription.lines).selectinload(SubscriptionLine.tax),
+            selectinload(Subscription.plan),
+            selectinload(Subscription.payment_term),
+            selectinload(Subscription.customer),
+            selectinload(Subscription.discount).selectinload(Discount.products),
+        )
     )
     if only_id is not None:
         stmt = stmt.where(Subscription.id == only_id)
