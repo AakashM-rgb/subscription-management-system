@@ -122,7 +122,7 @@ const INITIAL_DATA: StorageData = {
 
   products: [
     {
-      id: 'p0000000-0000-0000-0000-000000000001',
+      id: 'b0000000-0000-0000-0000-000000000001',
       name: 'Brightloop Core Platform',
       code: 'PRD-CORE-01',
       product_type: 'software',
@@ -135,7 +135,7 @@ const INITIAL_DATA: StorageData = {
       updated_at: new Date().toISOString(),
     },
     {
-      id: 'p0000000-0000-0000-0000-000000000002',
+      id: 'b0000000-0000-0000-0000-000000000002',
       name: 'Advanced Revenue Analytics',
       code: 'PRD-ANLY-02',
       product_type: 'addon',
@@ -148,7 +148,7 @@ const INITIAL_DATA: StorageData = {
       updated_at: new Date().toISOString(),
     },
     {
-      id: 'p0000000-0000-0000-0000-000000000003',
+      id: 'b0000000-0000-0000-0000-000000000003',
       name: 'Enterprise SLA & Support',
       code: 'PRD-SPRT-03',
       product_type: 'service',
@@ -161,7 +161,7 @@ const INITIAL_DATA: StorageData = {
       updated_at: new Date().toISOString(),
     },
     {
-      id: 'p0000000-0000-0000-0000-000000000004',
+      id: 'b0000000-0000-0000-0000-000000000004',
       name: 'Odoo ERP Sync Module',
       code: 'PRD-ODOO-04',
       product_type: 'software',
@@ -174,7 +174,7 @@ const INITIAL_DATA: StorageData = {
       updated_at: new Date().toISOString(),
     },
     {
-      id: 'p0000000-0000-0000-0000-000000000005',
+      id: 'b0000000-0000-0000-0000-000000000005',
       name: 'Webhook & Custom Automation',
       code: 'PRD-AUTO-05',
       product_type: 'addon',
@@ -190,8 +190,8 @@ const INITIAL_DATA: StorageData = {
 
   product_variants: [
     {
-      id: 'v0000000-0000-0000-0000-000000000001',
-      product_id: 'p0000000-0000-0000-0000-000000000001',
+      id: 'ba000000-0000-0000-0000-000000000001',
+      product_id: 'b0000000-0000-0000-0000-000000000001',
       variant_name: 'Brand Integration',
       variant_value: 'Odoo Edition',
       price_surcharge: 560.0, // Base ₹2,000 + ₹560 = ₹2,560
@@ -200,8 +200,8 @@ const INITIAL_DATA: StorageData = {
       created_at: new Date(Date.now() - 180 * 86400000).toISOString(),
     },
     {
-      id: 'v0000000-0000-0000-0000-000000000002',
-      product_id: 'p0000000-0000-0000-0000-000000000001',
+      id: 'ba000000-0000-0000-0000-000000000002',
+      product_id: 'b0000000-0000-0000-0000-000000000001',
       variant_name: 'Deployment',
       variant_value: 'Dedicated Cloud Instance',
       price_surcharge: 1000.0,
@@ -210,8 +210,8 @@ const INITIAL_DATA: StorageData = {
       created_at: new Date(Date.now() - 180 * 86400000).toISOString(),
     },
     {
-      id: 'v0000000-0000-0000-0000-000000000003',
-      product_id: 'p0000000-0000-0000-0000-000000000003',
+      id: 'ba000000-0000-0000-0000-000000000003',
+      product_id: 'b0000000-0000-0000-0000-000000000003',
       variant_name: 'Assistance Level',
       variant_value: 'Dedicated Technical Account Manager',
       price_surcharge: 850.0,
@@ -294,7 +294,7 @@ const INITIAL_DATA: StorageData = {
 
   tax_rates: [
     {
-      id: 't0000000-0000-0000-0000-000000000001',
+      id: 'e0000000-0000-0000-0000-000000000001',
       name: 'GST 18% (Standard Software)',
       rate: 18.0,
       is_compound: false,
@@ -303,7 +303,7 @@ const INITIAL_DATA: StorageData = {
       created_at: new Date(Date.now() - 180 * 86400000).toISOString(),
     },
     {
-      id: 't0000000-0000-0000-0000-000000000002',
+      id: 'e0000000-0000-0000-0000-000000000002',
       name: 'Zero-Rated Export 0%',
       rate: 0.0,
       is_compound: false,
@@ -353,7 +353,7 @@ const INITIAL_DATA: StorageData = {
       description: 'Ready-to-use template for medium businesses adopting Brightloop with Odoo',
       validity_days: 30,
       default_plan_id: 'f0000000-0000-0000-0000-000000000003',
-      default_tax_id: 't0000000-0000-0000-0000-000000000001',
+      default_tax_id: 'e0000000-0000-0000-0000-000000000001',
       notes: 'Includes base platform and Odoo variant surcharge',
       is_active: true,
       created_at: new Date(Date.now() - 60 * 86400000).toISOString(),
@@ -361,9 +361,9 @@ const INITIAL_DATA: StorageData = {
         {
           id: 'qtl-1',
           template_id: 'qt000000-0000-0000-0000-000000000001',
-          product_id: 'p0000000-0000-0000-0000-000000000001',
+          product_id: 'b0000000-0000-0000-0000-000000000001',
           product_name: 'Brightloop Core Platform (Odoo Edition)',
-          variant_id: 'v0000000-0000-0000-0000-000000000001',
+          variant_id: 'ba000000-0000-0000-0000-000000000001',
           quantity: 1,
           unit_price: 2560.0,
           discount_percentage: 10,
@@ -375,7 +375,7 @@ const INITIAL_DATA: StorageData = {
 
   quotations: [
     {
-      id: 'q0000000-0000-0000-0000-000000000001',
+      id: 'ea000000-0000-0000-0000-000000000001',
       quotation_number: 'QUO-2026-0041',
       customer_id: 'c0000000-0000-0000-0000-000000000005',
       customer_name: 'Rohan Kapoor',
@@ -395,10 +395,10 @@ const INITIAL_DATA: StorageData = {
       lines: [
         {
           id: 'ql-1',
-          quotation_id: 'q0000000-0000-0000-0000-000000000001',
-          product_id: 'p0000000-0000-0000-0000-000000000001',
+          quotation_id: 'ea000000-0000-0000-0000-000000000001',
+          product_id: 'b0000000-0000-0000-0000-000000000001',
           product_name: 'Brightloop Core Platform (Odoo Edition)',
-          variant_id: 'v0000000-0000-0000-0000-000000000001',
+          variant_id: 'ba000000-0000-0000-0000-000000000001',
           quantity: 1,
           unit_price: 2560.0,
           discount_amount: 500.0,
@@ -408,7 +408,7 @@ const INITIAL_DATA: StorageData = {
       ],
     },
     {
-      id: 'q0000000-0000-0000-0000-000000000002',
+      id: 'ea000000-0000-0000-0000-000000000002',
       quotation_number: 'QUO-2026-0038',
       customer_id: 'c0000000-0000-0000-0000-000000000003',
       customer_name: 'David Chen',
@@ -432,7 +432,7 @@ const INITIAL_DATA: StorageData = {
   // 8 SUBSCRIPTIONS
   subscriptions: [
     {
-      id: 's0000000-0000-0000-0000-000000000001',
+      id: '50000000-0000-0000-0000-000000000001',
       subscription_number: 'SUB-2026-00001',
       customer_id: 'c0000000-0000-0000-0000-000000000001',
       customer_name: 'Alex Mercer (Apex Dynamics Ltd)',
@@ -456,10 +456,10 @@ const INITIAL_DATA: StorageData = {
       lines: [
         {
           id: 'sl-1',
-          subscription_id: 's0000000-0000-0000-0000-000000000001',
-          product_id: 'p0000000-0000-0000-0000-000000000001',
+          subscription_id: '50000000-0000-0000-0000-000000000001',
+          product_id: 'b0000000-0000-0000-0000-000000000001',
           product_name: 'Brightloop Core Platform (Odoo Edition)',
-          variant_id: 'v0000000-0000-0000-0000-000000000001',
+          variant_id: 'ba000000-0000-0000-0000-000000000001',
           variant_name: 'Odoo Edition (+₹560)',
           quantity: 1,
           unit_price: 2560.0,
@@ -470,7 +470,7 @@ const INITIAL_DATA: StorageData = {
       ],
     },
     {
-      id: 's0000000-0000-0000-0000-000000000002',
+      id: '50000000-0000-0000-0000-000000000002',
       subscription_number: 'SUB-2026-00002',
       customer_id: 'c0000000-0000-0000-0000-000000000002',
       customer_name: 'Priya Sharma (Zenith Cloud Labs)',
@@ -494,8 +494,8 @@ const INITIAL_DATA: StorageData = {
       lines: [
         {
           id: 'sl-2',
-          subscription_id: 's0000000-0000-0000-0000-000000000002',
-          product_id: 'p0000000-0000-0000-0000-000000000001',
+          subscription_id: '50000000-0000-0000-0000-000000000002',
+          product_id: 'b0000000-0000-0000-0000-000000000001',
           product_name: 'Brightloop Core Platform (Annual Pack)',
           quantity: 1,
           unit_price: 28000.0,
@@ -506,7 +506,7 @@ const INITIAL_DATA: StorageData = {
       ],
     },
     {
-      id: 's0000000-0000-0000-0000-000000000003',
+      id: '50000000-0000-0000-0000-000000000003',
       subscription_number: 'SUB-2026-00003',
       customer_id: 'c0000000-0000-0000-0000-000000000003',
       customer_name: 'David Chen (HyperFlow Logistics)',
@@ -530,7 +530,7 @@ const INITIAL_DATA: StorageData = {
       lines: [],
     },
     {
-      id: 's0000000-0000-0000-0000-000000000004',
+      id: '50000000-0000-0000-0000-000000000004',
       subscription_number: 'SUB-2026-00004',
       customer_id: 'c0000000-0000-0000-0000-000000000004',
       customer_name: 'Neha Verma (Aurora BioTech Innovations)',
@@ -554,7 +554,7 @@ const INITIAL_DATA: StorageData = {
       lines: [],
     },
     {
-      id: 's0000000-0000-0000-0000-000000000005',
+      id: '50000000-0000-0000-0000-000000000005',
       subscription_number: 'SUB-2026-00005',
       customer_id: 'c0000000-0000-0000-0000-000000000005',
       customer_name: 'Rohan Kapoor (Kapoor Enterprise Systems)',
@@ -578,7 +578,7 @@ const INITIAL_DATA: StorageData = {
       lines: [],
     },
     {
-      id: 's0000000-0000-0000-0000-000000000006',
+      id: '50000000-0000-0000-0000-000000000006',
       subscription_number: 'SUB-2026-00006',
       customer_id: 'c0000000-0000-0000-0000-000000000001',
       customer_name: 'Alex Mercer (Apex Dynamics Ltd)',
@@ -603,7 +603,7 @@ const INITIAL_DATA: StorageData = {
       lines: [],
     },
     {
-      id: 's0000000-0000-0000-0000-000000000007',
+      id: '50000000-0000-0000-0000-000000000007',
       subscription_number: 'SUB-2026-00007',
       customer_id: 'c0000000-0000-0000-0000-000000000003',
       customer_name: 'David Chen (HyperFlow Logistics)',
@@ -629,7 +629,7 @@ const INITIAL_DATA: StorageData = {
       lines: [],
     },
     {
-      id: 's0000000-0000-0000-0000-000000000008',
+      id: '50000000-0000-0000-0000-000000000008',
       subscription_number: 'SUB-2026-00008',
       customer_id: 'c0000000-0000-0000-0000-000000000002',
       customer_name: 'Priya Sharma (Zenith Cloud Labs)',
@@ -657,12 +657,12 @@ const INITIAL_DATA: StorageData = {
   // 10 INVOICES
   invoices: [
     {
-      id: 'i0000000-0000-0000-0000-000000000001',
+      id: '10000000-0000-0000-0000-000000000001',
       invoice_number: 'INV-2026-00101',
       customer_id: 'c0000000-0000-0000-0000-000000000002',
       customer_name: 'Priya Sharma (Zenith Cloud Labs)',
       customer_email: 'priya.sharma@zenithcloud.in',
-      subscription_id: 's0000000-0000-0000-0000-000000000002',
+      subscription_id: '50000000-0000-0000-0000-000000000002',
       subscription_number: 'SUB-2026-00002',
       billing_period: '2026 Annual Platinum',
       issue_date: '2026-06-01',
@@ -679,12 +679,12 @@ const INITIAL_DATA: StorageData = {
       updated_at: '2026-06-15T14:30:00Z',
     },
     {
-      id: 'i0000000-0000-0000-0000-000000000002',
+      id: '10000000-0000-0000-0000-000000000002',
       invoice_number: 'INV-2026-00102',
       customer_id: 'c0000000-0000-0000-0000-000000000001',
       customer_name: 'Alex Mercer (Apex Dynamics Ltd)',
       customer_email: 'alex.mercer@apextech.io',
-      subscription_id: 's0000000-0000-0000-0000-000000000001',
+      subscription_id: '50000000-0000-0000-0000-000000000001',
       subscription_number: 'SUB-2026-00001',
       billing_period: 'September 2026',
       issue_date: '2026-09-01',
@@ -701,12 +701,12 @@ const INITIAL_DATA: StorageData = {
       updated_at: '2026-09-05T11:20:00Z',
     },
     {
-      id: 'i0000000-0000-0000-0000-000000000003',
+      id: '10000000-0000-0000-0000-000000000003',
       invoice_number: 'INV-2026-00103',
       customer_id: 'c0000000-0000-0000-0000-000000000001',
       customer_name: 'Alex Mercer (Apex Dynamics Ltd)',
       customer_email: 'alex.mercer@apextech.io',
-      subscription_id: 's0000000-0000-0000-0000-000000000001',
+      subscription_id: '50000000-0000-0000-0000-000000000001',
       subscription_number: 'SUB-2026-00001',
       billing_period: 'October 2026',
       issue_date: '2026-10-01',
@@ -723,12 +723,12 @@ const INITIAL_DATA: StorageData = {
       updated_at: '2026-10-15T16:00:00Z',
     },
     {
-      id: 'i0000000-0000-0000-0000-000000000004',
+      id: '10000000-0000-0000-0000-000000000004',
       invoice_number: 'INV-2026-00104',
       customer_id: 'c0000000-0000-0000-0000-000000000003',
       customer_name: 'David Chen (HyperFlow Logistics)',
       customer_email: 'david.chen@hyperflow.com',
-      subscription_id: 's0000000-0000-0000-0000-000000000003',
+      subscription_id: '50000000-0000-0000-0000-000000000003',
       subscription_number: 'SUB-2026-00003',
       billing_period: '01 Oct - 07 Oct 2026',
       issue_date: '2026-10-01',
@@ -745,12 +745,12 @@ const INITIAL_DATA: StorageData = {
       updated_at: '2026-10-02T12:00:00Z',
     },
     {
-      id: 'i0000000-0000-0000-0000-000000000005',
+      id: '10000000-0000-0000-0000-000000000005',
       invoice_number: 'INV-2026-00105',
       customer_id: 'c0000000-0000-0000-0000-000000000003',
       customer_name: 'David Chen (HyperFlow Logistics)',
       customer_email: 'david.chen@hyperflow.com',
-      subscription_id: 's0000000-0000-0000-0000-000000000003',
+      subscription_id: '50000000-0000-0000-0000-000000000003',
       subscription_number: 'SUB-2026-00003',
       billing_period: '08 Oct - 14 Oct 2026',
       issue_date: '2026-10-08',
@@ -767,12 +767,12 @@ const INITIAL_DATA: StorageData = {
       updated_at: '2026-10-09T15:10:00Z',
     },
     {
-      id: 'i0000000-0000-0000-0000-000000000006',
+      id: '10000000-0000-0000-0000-000000000006',
       invoice_number: 'INV-2026-00106',
       customer_id: 'c0000000-0000-0000-0000-000000000004',
       customer_name: 'Neha Verma (Aurora BioTech)',
       customer_email: 'neha.verma@auroratech.org',
-      subscription_id: 's0000000-0000-0000-0000-000000000004',
+      subscription_id: '50000000-0000-0000-0000-000000000004',
       subscription_number: 'SUB-2026-00004',
       billing_period: '2026-10-18',
       issue_date: '2026-10-18',
@@ -789,12 +789,12 @@ const INITIAL_DATA: StorageData = {
       updated_at: '2026-10-18T09:00:00Z',
     },
     {
-      id: 'i0000000-0000-0000-0000-000000000007',
+      id: '10000000-0000-0000-0000-000000000007',
       invoice_number: 'INV-2026-00107',
       customer_id: 'c0000000-0000-0000-0000-000000000004',
       customer_name: 'Neha Verma (Aurora BioTech)',
       customer_email: 'neha.verma@auroratech.org',
-      subscription_id: 's0000000-0000-0000-0000-000000000004',
+      subscription_id: '50000000-0000-0000-0000-000000000004',
       subscription_number: 'SUB-2026-00004',
       billing_period: '2026-10-25',
       issue_date: '2026-10-25',
@@ -811,12 +811,12 @@ const INITIAL_DATA: StorageData = {
       updated_at: '2026-10-25T09:00:00Z',
     },
     {
-      id: 'i0000000-0000-0000-0000-000000000008',
+      id: '10000000-0000-0000-0000-000000000008',
       invoice_number: 'INV-2026-00108',
       customer_id: 'c0000000-0000-0000-0000-000000000005',
       customer_name: 'Rohan Kapoor (Kapoor Systems)',
       customer_email: 'rohan@kapoorsystems.com',
-      subscription_id: 's0000000-0000-0000-0000-000000000005',
+      subscription_id: '50000000-0000-0000-0000-000000000005',
       subscription_number: 'SUB-2026-00005',
       billing_period: 'November 2026',
       issue_date: '2026-10-29',
@@ -833,7 +833,7 @@ const INITIAL_DATA: StorageData = {
       updated_at: '2026-10-29T09:00:00Z',
     },
     {
-      id: 'i0000000-0000-0000-0000-000000000009',
+      id: '10000000-0000-0000-0000-000000000009',
       invoice_number: 'INV-2026-00109',
       customer_id: 'c0000000-0000-0000-0000-000000000001',
       customer_name: 'Alex Mercer (Apex Dynamics Ltd)',
@@ -854,12 +854,12 @@ const INITIAL_DATA: StorageData = {
       updated_at: '2026-10-30T09:00:00Z',
     },
     {
-      id: 'i0000000-0000-0000-0000-000000000010',
+      id: '10000000-0000-0000-0000-000000000010',
       invoice_number: 'INV-2026-00110',
       customer_id: 'c0000000-0000-0000-0000-000000000003',
       customer_name: 'David Chen (HyperFlow Logistics)',
       customer_email: 'david.chen@hyperflow.com',
-      subscription_id: 's0000000-0000-0000-0000-000000000003',
+      subscription_id: '50000000-0000-0000-0000-000000000003',
       subscription_number: 'SUB-2026-00003',
       billing_period: '22 Oct - 28 Oct 2026',
       issue_date: '2026-10-22',
@@ -882,7 +882,7 @@ const INITIAL_DATA: StorageData = {
     {
       id: 'pay-001',
       payment_number: 'PAY-20260615-0001',
-      invoice_id: 'i0000000-0000-0000-0000-000000000001',
+      invoice_id: '10000000-0000-0000-0000-000000000001',
       invoice_number: 'INV-2026-00101',
       customer_id: 'c0000000-0000-0000-0000-000000000002',
       customer_name: 'Priya Sharma (Zenith Cloud Labs)',
@@ -896,7 +896,7 @@ const INITIAL_DATA: StorageData = {
     {
       id: 'pay-002',
       payment_number: 'PAY-20260905-0002',
-      invoice_id: 'i0000000-0000-0000-0000-000000000002',
+      invoice_id: '10000000-0000-0000-0000-000000000002',
       invoice_number: 'INV-2026-00102',
       customer_id: 'c0000000-0000-0000-0000-000000000001',
       customer_name: 'Alex Mercer (Apex Dynamics Ltd)',
@@ -910,7 +910,7 @@ const INITIAL_DATA: StorageData = {
     {
       id: 'pay-003',
       payment_number: 'PAY-20261015-0003',
-      invoice_id: 'i0000000-0000-0000-0000-000000000003',
+      invoice_id: '10000000-0000-0000-0000-000000000003',
       invoice_number: 'INV-2026-00103',
       customer_id: 'c0000000-0000-0000-0000-000000000001',
       customer_name: 'Alex Mercer (Apex Dynamics Ltd)',
@@ -924,7 +924,7 @@ const INITIAL_DATA: StorageData = {
     {
       id: 'pay-004',
       payment_number: 'PAY-20261002-0004',
-      invoice_id: 'i0000000-0000-0000-0000-000000000004',
+      invoice_id: '10000000-0000-0000-0000-000000000004',
       invoice_number: 'INV-2026-00104',
       customer_id: 'c0000000-0000-0000-0000-000000000003',
       customer_name: 'David Chen (HyperFlow Logistics)',
@@ -938,7 +938,7 @@ const INITIAL_DATA: StorageData = {
     {
       id: 'pay-005',
       payment_number: 'PAY-20261009-0005',
-      invoice_id: 'i0000000-0000-0000-0000-000000000005',
+      invoice_id: '10000000-0000-0000-0000-000000000005',
       invoice_number: 'INV-2026-00105',
       customer_id: 'c0000000-0000-0000-0000-000000000003',
       customer_name: 'David Chen (HyperFlow Logistics)',

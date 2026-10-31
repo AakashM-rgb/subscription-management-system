@@ -4,7 +4,7 @@
 -- 5 Customers, 5 Products, 3 Variants, 4 Plans, 8 Subscriptions, 10 Invoices, 5 Payments
 -- ============================================================================
 
--- Constant UUIDs for deterministic relationships
+-- Constant valid hexadecimal UUIDs for deterministic relationships
 DO $$
 DECLARE
     -- Admin & Staff Profiles
@@ -12,57 +12,57 @@ DECLARE
     v_staff_id UUID := 'a0000000-0000-0000-0000-000000000002';
     v_cust_user_id UUID := 'a0000000-0000-0000-0000-000000000003';
 
-    -- Customers
+    -- Customers (c0000000-...)
     v_c1 UUID := 'c0000000-0000-0000-0000-000000000001';
     v_c2 UUID := 'c0000000-0000-0000-0000-000000000002';
     v_c3 UUID := 'c0000000-0000-0000-0000-000000000003';
     v_c4 UUID := 'c0000000-0000-0000-0000-000000000004';
     v_c5 UUID := 'c0000000-0000-0000-0000-000000000005';
 
-    -- Products
-    v_p1 UUID := 'p0000000-0000-0000-0000-000000000001'; -- Brightloop Core SaaS
-    v_p2 UUID := 'p0000000-0000-0000-0000-000000000002'; -- Advanced Analytics Addon
-    v_p3 UUID := 'p0000000-0000-0000-0000-000000000003'; -- Enterprise SLA Support
-    v_p4 UUID := 'p0000000-0000-0000-0000-000000000004'; -- Odoo Bi-directional Sync
-    v_p5 UUID := 'p0000000-0000-0000-0000-000000000005'; -- Custom Webhook Automation
+    -- Products (b0000000-...)
+    v_p1 UUID := 'b0000000-0000-0000-0000-000000000001'; -- Brightloop Core SaaS
+    v_p2 UUID := 'b0000000-0000-0000-0000-000000000002'; -- Advanced Analytics Addon
+    v_p3 UUID := 'b0000000-0000-0000-0000-000000000003'; -- Enterprise SLA Support
+    v_p4 UUID := 'b0000000-0000-0000-0000-000000000004'; -- Odoo Bi-directional Sync
+    v_p5 UUID := 'b0000000-0000-0000-0000-000000000005'; -- Custom Webhook Automation
 
-    -- Product Variants
-    v_pv1 UUID := 'v0000000-0000-0000-0000-000000000001'; -- Odoo Enterprise Connector
-    v_pv2 UUID := 'v0000000-0000-0000-0000-000000000002'; -- Dedicated Cloud Instance
-    v_pv3 UUID := 'v0000000-0000-0000-0000-000000000003'; -- 24x7 Dedicated TAM
+    -- Product Variants (ba000000-...)
+    v_pv1 UUID := 'ba000000-0000-0000-0000-000000000001'; -- Odoo Enterprise Connector
+    v_pv2 UUID := 'ba000000-0000-0000-0000-000000000002'; -- Dedicated Cloud Instance
+    v_pv3 UUID := 'ba000000-0000-0000-0000-000000000003'; -- 24x7 Dedicated TAM
 
-    -- Plans
+    -- Plans (f0000000-...)
     v_pl_daily UUID := 'f0000000-0000-0000-0000-000000000001';   -- Daily Micro-Billing
     v_pl_weekly UUID := 'f0000000-0000-0000-0000-000000000002';  -- Growth Weekly Sprint
     v_pl_monthly UUID := 'f0000000-0000-0000-0000-000000000003'; -- Professional Monthly
-    v_pl_yearly UUID := 'f0000000-0000-0000-0000-000000000004';  -- Enterprise Annual
+    v_pl_yearly UUID := 'f0000000-0000-0000-0000-000000000004';  -- Enterprise Annual b
 
-    -- Tax Rates & Discounts
-    v_tax_gst UUID := 't0000000-0000-0000-0000-000000000001';
-    v_tax_zero UUID := 't0000000-0000-0000-0000-000000000002';
+    -- Tax Rates & Discounts (e0000000-... and d0000000-...)
+    v_tax_gst UUID := 'e0000000-0000-0000-0000-000000000001';
+    v_tax_zero UUID := 'e0000000-0000-0000-0000-000000000002';
     v_disc_early UUID := 'd0000000-0000-0000-0000-000000000001';
     v_disc_flat UUID := 'd0000000-0000-0000-0000-000000000002';
 
-    -- Quotations & Subscriptions & Invoices
-    v_s1 UUID := 's0000000-0000-0000-0000-000000000001';
-    v_s2 UUID := 's0000000-0000-0000-0000-000000000002';
-    v_s3 UUID := 's0000000-0000-0000-0000-000000000003';
-    v_s4 UUID := 's0000000-0000-0000-0000-000000000004';
-    v_s5 UUID := 's0000000-0000-0000-0000-000000000005';
-    v_s6 UUID := 's0000000-0000-0000-0000-000000000006';
-    v_s7 UUID := 's0000000-0000-0000-0000-000000000007';
-    v_s8 UUID := 's0000000-0000-0000-0000-000000000008';
+    -- Subscriptions (50000000-...) & Invoices (10000000-...)
+    v_s1 UUID := '50000000-0000-0000-0000-000000000001';
+    v_s2 UUID := '50000000-0000-0000-0000-000000000002';
+    v_s3 UUID := '50000000-0000-0000-0000-000000000003';
+    v_s4 UUID := '50000000-0000-0000-0000-000000000004';
+    v_s5 UUID := '50000000-0000-0000-0000-000000000005';
+    v_s6 UUID := '50000000-0000-0000-0000-000000000006';
+    v_s7 UUID := '50000000-0000-0000-0000-000000000007';
+    v_s8 UUID := '50000000-0000-0000-0000-000000000008';
 
-    v_inv1 UUID := 'i0000000-0000-0000-0000-000000000001';
-    v_inv2 UUID := 'i0000000-0000-0000-0000-000000000002';
-    v_inv3 UUID := 'i0000000-0000-0000-0000-000000000003';
-    v_inv4 UUID := 'i0000000-0000-0000-0000-000000000004';
-    v_inv5 UUID := 'i0000000-0000-0000-0000-000000000005';
-    v_inv6 UUID := 'i0000000-0000-0000-0000-000000000006';
-    v_inv7 UUID := 'i0000000-0000-0000-0000-000000000007';
-    v_inv8 UUID := 'i0000000-0000-0000-0000-000000000008';
-    v_inv9 UUID := 'i0000000-0000-0000-0000-000000000009';
-    v_inv10 UUID := 'i0000000-0000-0000-0000-000000000010';
+    v_inv1 UUID := '10000000-0000-0000-0000-000000000001';
+    v_inv2 UUID := '10000000-0000-0000-0000-000000000002';
+    v_inv3 UUID := '10000000-0000-0000-0000-000000000003';
+    v_inv4 UUID := '10000000-0000-0000-0000-000000000004';
+    v_inv5 UUID := '10000000-0000-0000-0000-000000000005';
+    v_inv6 UUID := '10000000-0000-0000-0000-000000000006';
+    v_inv7 UUID := '10000000-0000-0000-0000-000000000007';
+    v_inv8 UUID := '10000000-0000-0000-0000-000000000008';
+    v_inv9 UUID := '10000000-0000-0000-0000-000000000009';
+    v_inv10 UUID := '10000000-0000-0000-0000-000000000010';
 
 BEGIN
     -- 1. SEED 5 CUSTOMERS
@@ -85,7 +85,7 @@ BEGIN
     (v_p5, 'Webhook & Custom Automation', 'PRD-AUTO-05', 'addon', 500.00, 80.00, 'Custom event webhooks and Zapier / Make connectors', 'Automation module', true)
     ON CONFLICT (id) DO NOTHING;
 
-    -- 3. SEED 3 PRODUCT VARIANTS (e.g. Base ₹2,000 + Odoo variant adds ₹560)
+    -- 3. SEED 3 PRODUCT VARIANTS (Base ₹2,000 + Odoo variant adds ₹560)
     INSERT INTO product_variants (id, product_id, variant_name, variant_value, price_surcharge, sku, is_active)
     VALUES
     (v_pv1, v_p1, 'Brand Integration', 'Odoo Edition', 560.00, 'PRD-CORE-ODOO', true),

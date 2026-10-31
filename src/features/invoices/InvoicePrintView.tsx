@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Invoice } from '../../types/database';
 import { formatCurrency } from '../../lib/currency';
 import { formatDate } from '../../lib/date';
 import { Button } from '../../components/common/Button';
-import { Printer, X, Zap } from 'lucide-react';
+import { Printer, X, Zap, QrCode } from 'lucide-react';
 import { Modal } from '../../components/common/Modal';
+import { generateQrMatrix } from '../../lib/qrCode';
 
 interface InvoicePrintViewProps {
   isOpen: boolean;
@@ -18,6 +19,16 @@ export const InvoicePrintView: React.FC<InvoicePrintViewProps> = ({
   invoice,
 }) => {
   const remaining = Math.max(0, invoice.total_amount - invoice.amount_paid);
+
+  const qrMatrix = useMemo(() => {
+    const cleanAmount = (remaining > 0 ? remaining : invoice.total_amount).toFixed(2);
+    const upiLink = `upi://pay?pa=brightloop.billing@okhdfcbank&pn=Brightloop%20Software&am=${cleanAmount}&cu=INR&tn=Invoice%20${invoice.invoice_number}`;
+    try {
+      return generateQrMatrix(upiLink);
+    } catch {
+      return [];
+    }
+  }, [remaining, invoice.total_amount, invoice.invoice_number]);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} maxWidth="4xl">
@@ -58,62 +69,58 @@ export const InvoicePrintView: React.FC<InvoicePrintViewProps> = ({
               <p className="text-slate-500 text-[11px]">
                 Subscription Billing Operations & Cloud Engineering
               </p>
-              <p className="text-slate-500 text-[11px]">
-                GSTIN: 29AABCB9821C1Z4 • support@brightloop.io
+              <p className="text-slate-400 text-[10px]">
+                GSTIN: 27AABCB9012F1Z4 • CIN: U72200MH2024PTC189021
               </p>
             </div>
 
             <div className="text-right space-y-1">
-              <span className="text-xs font-semibold uppercase tracking-widest text-slate-400">
+              <span className="px-2.5 py-1 rounded bg-slate-100 text-slate-800 font-bold uppercase text-[10px] tracking-wider">
                 TAX INVOICE
               </span>
-              <h2 className="text-xl font-bold font-mono text-slate-900">
+              <p className="font-extrabold text-base text-slate-900 pt-1">
                 {invoice.invoice_number}
-              </h2>
-              <p className="text-slate-500">
-                Status:{' '}
-                <span className="font-semibold uppercase text-blue-600">
-                  {invoice.status}
-                </span>
+              </p>
+              <p className="text-slate-500 text-[11px]">
+                Date: {formatDate(invoice.issue_date)}
+              </p>
+              <p className="text-slate-500 text-[11px]">
+                Due: {formatDate(invoice.due_date)}
               </p>
             </div>
           </div>
 
-          {/* Meta & Addresses */}
+          {/* Billed To / Billing Period */}
           <div className="grid grid-cols-2 gap-8 pt-4 border-t border-slate-100">
             <div>
-              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
                 Billed To:
-              </span>
+              </p>
               <p className="font-bold text-sm text-slate-900">{invoice.customer_name}</p>
-              <p className="text-slate-500 mt-0.5">{invoice.customer_email}</p>
-              <p className="text-slate-500 mt-0.5">Billing Terms: Net 15</p>
+              <p className="text-slate-600">{invoice.customer_email}</p>
+              <p className="text-slate-500 text-[11px] mt-1">Status: Active Corporate Subscriber</p>
             </div>
 
-            <div className="text-right space-y-1">
-              <div>
-                <span className="text-slate-400">Billing Period:</span>{' '}
-                <span className="font-medium text-slate-800">{invoice.billing_period}</span>
-              </div>
-              <div>
-                <span className="text-slate-400">Issue Date:</span>{' '}
-                <span className="font-medium text-slate-800">{formatDate(invoice.issue_date)}</span>
-              </div>
-              <div>
-                <span className="text-slate-400">Due Date:</span>{' '}
-                <span className="font-medium text-slate-800">{formatDate(invoice.due_date)}</span>
-              </div>
+            <div className="text-right">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                Subscription Reference:
+              </p>
+              <p className="font-semibold text-slate-900">
+                {invoice.subscription_number || 'Direct Order'}
+              </p>
+              <p className="text-slate-600">Period: {invoice.billing_period}</p>
+              <p className="text-slate-500 text-[11px] mt-1">Payment Terms: Net 15 Days</p>
             </div>
           </div>
 
           {/* Line Items Table */}
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 font-semibold">
+              <tr className="border-y border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600 uppercase">
                 <th className="py-2.5 px-3">Description</th>
                 <th className="py-2.5 px-3 text-center">Qty</th>
                 <th className="py-2.5 px-3 text-right">Unit Price</th>
-                <th className="py-2.5 px-3 text-right">GST Rate</th>
+                <th className="py-2.5 px-3 text-right">Tax Rate</th>
                 <th className="py-2.5 px-3 text-right">Amount</th>
               </tr>
             </thead>
@@ -121,10 +128,10 @@ export const InvoicePrintView: React.FC<InvoicePrintViewProps> = ({
               <tr>
                 <td className="py-3 px-3">
                   <p className="font-semibold text-slate-900">
-                    Brightloop Core Platform & Subscription License
+                    Recurring SaaS Subscription Service
                   </p>
-                  <p className="text-[11px] text-slate-400">
-                    Recurring software period: {invoice.billing_period}
+                  <p className="text-slate-500 text-[11px]">
+                    Period: {invoice.billing_period} • Standard Enterprise SLA
                   </p>
                 </td>
                 <td className="py-3 px-3 text-center font-medium">1</td>
@@ -165,6 +172,65 @@ export const InvoicePrintView: React.FC<InvoicePrintViewProps> = ({
               <div className="pt-2 border-t border-slate-100 flex justify-between font-extrabold text-blue-600">
                 <span>Balance Due:</span>
                 <span>{formatCurrency(remaining)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Remittance & UPI QR Code Section */}
+          <div className="pt-6 border-t border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-6 items-center">
+            <div className="space-y-1.5 text-[11px] text-slate-600">
+              <p className="font-bold text-xs text-slate-900 uppercase tracking-wider">
+                Bank Remittance & Wire Transfer
+              </p>
+              <div className="flex justify-between border-b border-slate-100 py-1">
+                <span className="text-slate-400">Bank:</span>
+                <span className="font-semibold text-slate-800">HDFC Bank Limited</span>
+              </div>
+              <div className="flex justify-between border-b border-slate-100 py-1">
+                <span className="text-slate-400">Account:</span>
+                <span className="font-mono font-semibold text-slate-800">50200084920194</span>
+              </div>
+              <div className="flex justify-between border-b border-slate-100 py-1">
+                <span className="text-slate-400">IFSC Code:</span>
+                <span className="font-mono font-semibold text-slate-800">HDFC0001249</span>
+              </div>
+              <div className="flex justify-between py-1">
+                <span className="text-slate-400">UPI VPA:</span>
+                <span className="font-mono font-semibold text-blue-600">brightloop.billing@okhdfcbank</span>
+              </div>
+            </div>
+
+            {/* UPI QR Code Block */}
+            <div className="flex items-center gap-4 bg-slate-50 border border-slate-200/90 rounded-xl p-3.5">
+              {qrMatrix.length > 0 && (
+                <div className="p-1.5 bg-white border border-slate-200 rounded-lg shadow-sm shrink-0">
+                  <svg
+                    viewBox={`0 0 ${qrMatrix.length} ${qrMatrix.length}`}
+                    className="w-20 h-20"
+                    shapeRendering="crispEdges"
+                  >
+                    {qrMatrix.map((row, r) =>
+                      row.map((isDark, c) =>
+                        isDark ? (
+                          <rect key={`${r}-${c}`} x={c} y={r} width={1} height={1} fill="#0f172a" />
+                        ) : null
+                      )
+                    )}
+                  </svg>
+                </div>
+              )}
+              <div className="space-y-1">
+                <span className="inline-block text-[10px] font-extrabold uppercase tracking-wider text-slate-900">
+                  Instant UPI Scan & Pay
+                </span>
+                <p className="text-[10px] text-slate-500 leading-tight">
+                  Scan to pay {formatCurrency(remaining > 0 ? remaining : invoice.total_amount)} directly using GPay, PhonePe, Paytm or any UPI App.
+                </p>
+                <div className="flex items-center gap-1.5 pt-1 text-[9px] font-bold">
+                  <span className="text-blue-600 bg-blue-50 px-1 py-0.5 rounded">GPay</span>
+                  <span className="text-purple-700 bg-purple-50 px-1 py-0.5 rounded">PhonePe</span>
+                  <span className="text-sky-600 bg-sky-50 px-1 py-0.5 rounded">Paytm</span>
+                </div>
               </div>
             </div>
           </div>

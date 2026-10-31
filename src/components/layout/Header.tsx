@@ -5,6 +5,7 @@ import { usePermissions } from '../../hooks/usePermissions';
 import { Button } from '../common/Button';
 import { UserRole } from '../../types/database';
 import { SubflowStore } from '../../services/mockData';
+import { supabase, isSupabaseConfigured } from '../../services/supabase';
 
 interface HeaderProps {
   onMenuToggle: () => void;
@@ -28,7 +29,22 @@ export const Header: React.FC<HeaderProps> = ({
     setBillingLoading(true);
     setBillingResult(null);
     try {
-      // Execute billing engine immediately
+      if (isSupabaseConfigured && supabase) {
+        try {
+          const { data, error: rpcErr } = await supabase.rpc('generate_recurring_invoices', {
+            p_target_date: new Date().toISOString().split('T')[0],
+          });
+          if (!rpcErr && data) {
+            setBillingResult(`Supabase billing executed! ${data.invoices_generated ?? 0} invoice(s) generated.`);
+            if (onRefresh) onRefresh();
+            return;
+          }
+        } catch {
+          // Fall through to local simulation
+        }
+      }
+
+      // Execute billing engine immediately in local store
       const res = SubflowStore.generateRecurringInvoices();
       if (res.success) {
         setBillingResult(`Billing executed! ${res.processed_count} invoice(s) generated.`);

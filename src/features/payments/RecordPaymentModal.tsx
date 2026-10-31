@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal } from '../../components/common/Modal';
 import { Input } from '../../components/common/Input';
 import { Select } from '../../components/common/Select';
@@ -6,7 +6,9 @@ import { Button } from '../../components/common/Button';
 import { Invoice, PaymentMethod } from '../../types/database';
 import { SubflowStore } from '../../services/mockData';
 import { formatCurrency } from '../../lib/currency';
-import { CreditCard, CheckCircle2, AlertCircle } from 'lucide-react';
+import { CreditCard, CheckCircle2, AlertCircle, QrCode } from 'lucide-react';
+import { UpiQrPayment } from '../../components/common/UpiQrPayment';
+import { useAuth } from '../auth/AuthContext';
 
 interface RecordPaymentModalProps {
   isOpen: boolean;
@@ -21,25 +23,39 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
   invoice,
   onSuccess,
 }) => {
-  const remainingBalance = Math.max(0, invoice.total_amount - invoice.amount_paid);
+  const { user } = useAuth();
+  const isCustomer = user?.role === 'customer';
 
-  const [amount, setAmount] = useState<number>(Number(remainingBalance.toFixed(2)));
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('bank_transfer');
+  // Strict rounding to 2 decimal places to prevent IEEE-754 floating point precision errors
+  const remainingBalance = Math.round(Math.max(0, invoice.total_amount - invoice.amount_paid) * 100) / 100;
+
+  const [amount, setAmount] = useState<number>(remainingBalance);
+  // Default to UPI for portal customers, bank_transfer for admin/staff
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(isCustomer ? 'upi' : 'bank_transfer');
   const [transactionRef, setTransactionRef] = useState('');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Sync state whenever the selected invoice changes
+  useEffect(() => {
+    const freshRemaining = Math.round(Math.max(0, invoice.total_amount - invoice.amount_paid) * 100) / 100;
+    setAmount(freshRemaining);
+    setError(null);
+  }, [invoice.id, invoice.total_amount, invoice.amount_paid]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (amount <= 0) {
+
+    const cleanAmount = Math.round(amount * 100) / 100;
+    if (cleanAmount <= 0) {
       setError('Payment amount must be greater than zero');
       return;
     }
 
-    if (amount > remainingBalance + 0.01) {
+    if (cleanAmount > remainingBalance + 0.01) {
       setError(
-        `Payment of ${formatCurrency(amount)} exceeds the remaining balance of ${formatCurrency(remainingBalance)}`
+        `Payment of ${formatCurrency(cleanAmount)} exceeds the remaining balance of ${formatCurrency(remainingBalance)}`
       );
       return;
     }
@@ -50,10 +66,10 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
     try {
       const result = SubflowStore.recordPayment(
         invoice.id,
-        amount,
+        cleanAmount,
         paymentMethod,
-        transactionRef,
-        notes
+        transactionRef || (paymentMethod === 'upi' ? `UPI-${Date.now().toString().slice(-8)}` : ''),
+        notes || (paymentMethod === 'upi' ? 'Settled via UPI Mobile QR' : '')
       );
 
       if (result.success) {
@@ -73,11 +89,12 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Record Payment Settlement"
+      title={isCustomer ? "Settle Invoice Online" : "Record Payment Settlement"}
       description={`Invoice ${invoice.invoice_number} • ${invoice.customer_name}`}
-      maxWidth="md"
+      maxWidth={paymentMethod === 'upi' ? 'lg' : 'md'}
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
+      {/* noValidate prevents the browser's native floating point tooltip from popping up */}
+      <form onSubmit={handleSubmit} noValidate className="space-y-4">
         {error && (
           <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-lg font-medium flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
@@ -109,13 +126,17 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
           <Input
             label="Payment Amount (₹)"
             type="number"
-            step="0.01"
+            step="any"
+            min={0.01}
             max={remainingBalance}
             value={amount}
-            onChange={e => setAmount(parseFloat(e.target.value) || 0)}
+            onChange={e => {
+              const val = parseFloat(e.target.value);
+              setAmount(isNaN(val) ? 0 : val);
+            }}
             hint={
               amount < remainingBalance
-                ? `Partial settlement (leaves ${formatCurrency(remainingBalance - amount)})`
+                ? `Partial settlement (leaves ${formatCurrency(Math.max(0, remainingBalance - amount))})`
                 : 'Full settlement'
             }
             required
@@ -126,9 +147,9 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
             value={paymentMethod}
             onChange={e => setPaymentMethod(e.target.value as PaymentMethod)}
             options={[
+              { label: 'UPI / Instant Pay (GPay, PhonePe, Paytm)', value: 'upi' },
               { label: 'Bank Transfer (NEFT/RTGS)', value: 'bank_transfer' },
               { label: 'Corporate Credit Card', value: 'credit_card' },
-              { label: 'UPI / Instant Pay', value: 'upi' },
               { label: 'Stripe Gateway', value: 'stripe' },
               { label: 'Bank Cheque', value: 'check' },
               { label: 'Cash Settlement', value: 'cash' },
@@ -136,9 +157,26 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
           />
         </div>
 
+        {/* Dynamic UPI QR Code Section */}
+        {paymentMethod === 'upi' && (
+          <div className="pt-1">
+            <UpiQrPayment
+              amount={amount}
+              invoiceNumber={invoice.invoice_number}
+              customerName={invoice.customer_name}
+              onUtrGenerated={utr => {
+                setTransactionRef(utr);
+                if (!notes) {
+                  setNotes('UPI mobile QR settlement verified');
+                }
+              }}
+            />
+          </div>
+        )}
+
         <Input
-          label="Transaction / Reference #"
-          placeholder="e.g. UTR-9821039 or CH-4042"
+          label={paymentMethod === 'upi' ? "UPI Reference / UTR Number" : "Transaction / Reference #"}
+          placeholder={paymentMethod === 'upi' ? "12-digit UPI Ref e.g. UPI-492103984712" : "e.g. UTR-9821039 or CH-4042"}
           value={transactionRef}
           onChange={e => setTransactionRef(e.target.value)}
         />
@@ -150,7 +188,7 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
           <textarea
             rows={2}
             className="w-full rounded-lg border border-slate-300 p-2.5 text-xs text-slate-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-            placeholder="Deposit account or verification remark..."
+            placeholder={paymentMethod === 'upi' ? "UPI payment verification or bank remark..." : "Deposit account or verification remark..."}
             value={notes}
             onChange={e => setNotes(e.target.value)}
           />
@@ -164,9 +202,9 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
             type="submit"
             variant="primary"
             isLoading={loading}
-            leftIcon={<CreditCard className="w-4 h-4" />}
+            leftIcon={paymentMethod === 'upi' ? <QrCode className="w-4 h-4" /> : <CreditCard className="w-4 h-4" />}
           >
-            Record Payment
+            {paymentMethod === 'upi' ? 'Confirm UPI Settlement' : 'Record Payment'}
           </Button>
         </div>
       </form>

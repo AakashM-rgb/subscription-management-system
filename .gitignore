@@ -26,3 +26,9 @@ dist-ssr
 # Environment files
 .env
 .env*.local
+
+
+# Temp directories
+temp_git/
+sub_push/
+package-lock.json

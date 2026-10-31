@@ -3,7 +3,7 @@ import { AuthContextType, UserSession } from '../../types/auth';
 import { Profile, UserRole } from '../../types/database';
 import { supabase, isSupabaseConfigured } from '../../services/supabase';
 
-const DEMO_PROFILES: Record<UserRole, Profile> = {
+export const DEMO_PROFILES: Record<UserRole, Profile> = {
   admin: {
     id: 'a0000000-0000-0000-0000-000000000001',
     email: 'admin@brightloop.io',
@@ -51,6 +51,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const initAuth = async () => {
+      // 1. Check live Supabase Auth
       if (isSupabaseConfigured && supabase) {
         try {
           const { data: { session: sbSession } } = await supabase.auth.getSession();
@@ -80,26 +81,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           }
         } catch (e) {
-          console.warn('Supabase session load error, falling back to demo mode:', e);
+          console.warn('Supabase session load error, falling back to local demo state:', e);
         }
       }
 
-      // Default demo session
-      const profile = DEMO_PROFILES[currentRole];
-      setSession({
-        user: {
-          id: profile.id,
-          email: profile.email,
-          role: profile.role,
-          full_name: profile.full_name,
-          customer_id: profile.customer_id,
-          avatar_url: profile.avatar_url,
-        },
-        profile,
-        token: 'demo-jwt-token-brightloop',
-        isLoading: false,
-        isAuthenticated: true,
-      });
+      // 2. Demo mode session check
+      const isLoggedIn = localStorage.getItem('subflow_logged_in') !== 'false';
+      if (isLoggedIn) {
+        const profile = DEMO_PROFILES[currentRole];
+        setSession({
+          user: {
+            id: profile.id,
+            email: profile.email,
+            role: profile.role,
+            full_name: profile.full_name,
+            customer_id: profile.customer_id,
+            avatar_url: profile.avatar_url,
+          },
+          profile,
+          token: 'demo-jwt-token-brightloop',
+          isLoading: false,
+          isAuthenticated: true,
+        });
+      } else {
+        setSession({
+          user: null,
+          profile: null,
+          token: null,
+          isLoading: false,
+          isAuthenticated: false,
+        });
+      }
     };
 
     initAuth();
@@ -108,9 +120,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const switchDemoRole = (role: UserRole) => {
     setCurrentRole(role);
     localStorage.setItem('subflow_demo_role', role);
+    localStorage.setItem('subflow_logged_in', 'true');
     const profile = DEMO_PROFILES[role];
-    setSession(prev => ({
-      ...prev,
+    setSession({
       user: {
         id: profile.id,
         email: profile.email,
@@ -120,11 +132,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         avatar_url: profile.avatar_url,
       },
       profile,
+      token: 'demo-jwt-token-brightloop',
+      isLoading: false,
       isAuthenticated: true,
-    }));
+    });
   };
 
-  const login = async (email: string, password: string) => {
+  const login = async (
+    email: string,
+    password: string,
+    requiredRole?: UserRole
+  ): Promise<{ success: boolean; error?: string; role?: UserRole }> => {
+    // 1. Supabase live login
     if (isSupabaseConfigured && supabase) {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) return { success: false, error: error.message };
@@ -136,6 +155,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .single();
 
       if (profile) {
+        if (requiredRole && profile.role !== requiredRole) {
+          await supabase.auth.signOut();
+          return {
+            success: false,
+            error: `Access Denied: Account '${profile.email}' has '${profile.role}' role. This portal strictly requires '${requiredRole}' privileges.`,
+          };
+        }
+
+        localStorage.setItem('subflow_logged_in', 'true');
+        localStorage.setItem('subflow_demo_role', profile.role);
         setSession({
           user: profile,
           profile,
@@ -143,15 +172,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           isLoading: false,
           isAuthenticated: true,
         });
+        return { success: true, role: profile.role };
       }
       return { success: true };
     }
 
-    // Demo mode login
-    if (email.includes('staff')) switchDemoRole('staff');
-    else if (email.includes('alex') || email.includes('customer')) switchDemoRole('customer');
-    else switchDemoRole('admin');
-    return { success: true };
+    // 2. Demo mode login
+    let chosenRole: UserRole = 'admin';
+    if (requiredRole) {
+      chosenRole = requiredRole;
+    } else if (email.includes('staff') || email.includes('billing')) {
+      chosenRole = 'staff';
+    } else if (email.includes('alex') || email.includes('customer') || email.includes('apex')) {
+      chosenRole = 'customer';
+    } else {
+      chosenRole = 'admin';
+    }
+
+    // Role boundary validation
+    if (requiredRole && chosenRole !== requiredRole) {
+      return {
+        success: false,
+        error: `Access Denied: This portal requires ${requiredRole.toUpperCase()} credentials.`,
+      };
+    }
+
+    switchDemoRole(chosenRole);
+    return { success: true, role: chosenRole };
   };
 
   const signup = async (
@@ -160,8 +207,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     fullName: string,
     role: UserRole = 'customer'
   ) => {
-    // Password strength check according to requirements:
-    // > 8 characters, uppercase, lowercase, special characters
     if (password.length <= 8) {
       return { success: false, error: 'Password must be longer than 8 characters' };
     }
@@ -196,6 +241,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (isSupabaseConfigured && supabase) {
       await supabase.auth.signOut();
     }
+    localStorage.setItem('subflow_logged_in', 'false');
     setSession({
       user: null,
       profile: null,
@@ -219,9 +265,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (newPassword.length <= 8) {
       return { success: false, error: 'Password must be longer than 8 characters' };
     }
-    if (!/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/[!@#$%^&*(),.?":{}|<>]/.test(newPassword)) {
-      return { success: false, error: 'Password must contain uppercase, lowercase and special character' };
+    if (!/[A-Z]/.test(newPassword)) {
+      return { success: false, error: 'Password must contain at least one uppercase letter' };
     }
+    if (!/[a-z]/.test(newPassword)) {
+      return { success: false, error: 'Password must contain at least one lowercase letter' };
+    }
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(newPassword)) {
+      return { success: false, error: 'Password must contain at least one special character' };
+    }
+
     if (isSupabaseConfigured && supabase) {
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) return { success: false, error: error.message };

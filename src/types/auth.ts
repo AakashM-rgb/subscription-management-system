@@ -16,7 +16,7 @@ export interface UserSession {
 }
 
 export interface AuthContextType extends UserSession {
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  login: (email: string, password: string, requiredRole?: UserRole) => Promise<{ success: boolean; error?: string; role?: UserRole }>;
   signup: (email: string, password: string, fullName: string, role?: UserRole) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   resetPasswordForEmail: (email: string) => Promise<{ success: boolean; error?: string }>;

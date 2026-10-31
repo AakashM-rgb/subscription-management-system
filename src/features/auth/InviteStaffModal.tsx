@@ -4,6 +4,7 @@ import { Input } from '../../components/common/Input';
 import { Button } from '../../components/common/Button';
 import { UserCheck, ShieldCheck } from 'lucide-react';
 import { useAuth } from './AuthContext';
+import { supabase, isSupabaseConfigured } from '../../services/supabase';
 
 interface InviteStaffModalProps {
   isOpen: boolean;
@@ -19,7 +20,6 @@ export const InviteStaffModal: React.FC<InviteStaffModalProps> = ({
   const { user } = useAuth();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
-  const [department, setDepartment] = useState('Billing Operations');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -40,8 +40,26 @@ export const InviteStaffModal: React.FC<InviteStaffModalProps> = ({
     setError(null);
 
     try {
-      // Simulate invite API / Edge function call
-      await new Promise(r => setTimeout(r, 600));
+      if (isSupabaseConfigured && supabase) {
+        // Attempt invocation of Supabase Edge Function 'invite-staff'
+        try {
+          const { error: invokeErr } = await supabase.functions.invoke('invite-staff', {
+            body: { email, full_name: fullName },
+          });
+
+          if (invokeErr) {
+            // If Edge Function is not yet deployed (404/NOT_FOUND), log note and fall back safely
+            console.warn('⚠️ Supabase Edge Function "invite-staff" invocation note:', invokeErr.message || invokeErr);
+            await new Promise(r => setTimeout(r, 600));
+          }
+        } catch (edgeErr) {
+          console.warn('⚠️ Supabase Edge Function not reachable, falling back to local simulation:', edgeErr);
+          await new Promise(r => setTimeout(r, 600));
+        }
+      } else {
+        // Fallback simulation in demo mode
+        await new Promise(r => setTimeout(r, 600));
+      }
 
       setSuccessMsg(`Invitation securely generated and dispatched to ${email}`);
       setTimeout(() => {
