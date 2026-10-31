@@ -404,3 +404,23 @@ def test_pricing_preview(client, catalog, staff):
     )
     assert res.status_code == 200, res.text
     assert res.json()["amount_total"] == "13629.00"
+
+
+def test_catch_up_billing_judges_discount_validity_per_period(db, catalog):
+    """Found by Claude 2's financial audit: a late run must not drop a then-valid discount."""
+    promo = Discount(
+        name="Launch 10%",
+        kind="percentage",
+        value=D("10"),
+        scope="subscription",
+        valid_from=date(2026, 1, 1),
+        valid_until=date(2026, 2, 28),
+    )
+    db.add(promo)
+    db.flush()
+    sub = make_active(db, catalog, date(2026, 1, 1))
+    svc.set_discount(db, sub, promo.id, None, date(2026, 1, 1))
+    billing.run_billing(db, as_of=date(2026, 4, 1), trigger="manual")  # worker was down
+    discounts = [i.amount_discount for i in invoices_of(db, sub)]
+    assert discounts == [D("999.00"), D("999.00"), D("0.00"), D("0.00")]  # Jan, Feb valid
+    assert {i.invoice_date for i in invoices_of(db, sub)} == {date(2026, 4, 1)}  # issue date

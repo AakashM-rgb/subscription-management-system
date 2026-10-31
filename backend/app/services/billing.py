@@ -105,9 +105,11 @@ def create_invoice_for_period(
     p_end = min(period_end(sub.start_date, sub.plan.billing_period, k), sub.end_date)
     lines = price_lines(sub.lines)
     rule = discount_rule(sub.discount)
-    result = price(lines, rule, invoice_date)
+    # Discount validity is judged on the date the period fell due, not the date a (possibly
+    # late, catch-up) run issues the invoice: billing late must not change what is owed.
+    result = price(lines, rule, p_start)
     if result.discount_applied is not None and not _consume_discount(db, rule.id):
-        result = price(lines, None, invoice_date)  # limit reached concurrently: bill without it
+        result = price(lines, None, p_start)  # limit reached concurrently: bill without it
     if sub.discount is not None:
         db.expire(sub.discount, ["usage_count"])
 
