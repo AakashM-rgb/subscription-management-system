@@ -1,4 +1,4 @@
-"""Single-use, expiring tokens for password reset and invitations. Only SHA-256 hashes are stored."""
+"""Single-use, expiring password-reset and invitation tokens (only SHA-256 hashes stored)."""
 
 import hashlib
 import secrets

@@ -32,14 +32,17 @@ show 🔜 features as "not available yet".
 | ✅ | POST `/auth/login` | public | `{email, password}` → `Me` |
 | ✅ | POST `/auth/logout` | any | → 204 |
 | ✅ | GET `/auth/me` | any | → `Me {id, email, full_name, role, is_active, created_at, customer_id}` |
-| 🔜 | POST `/auth/password/forgot` | public | `{email}` → 202 always (no account enumeration) |
-| 🔜 | POST `/auth/password/reset` | public | `{token, password}` → 204 |
-| 🔜 | POST `/auth/invite/accept` | public | `{token, password}` → `Me` |
-| 🔜 | POST `/auth/password/change` | any | `{current_password, new_password}` → 204 |
+| ✅ | POST `/auth/password/forgot` | public | `{email}` → 202 always (no account enumeration) |
+| ✅ | POST `/auth/password/reset` | public | `{token, password}` → 204 |
+| ✅ | POST `/auth/invite/accept` | public | `{token, password}` → `Me` |
+| ✅ | POST `/auth/password/change` | any | `{current_password, new_password}` → 204 |
 | ✅ | GET `/users?role=` | A | → Page[`User`] |
 | ✅ | POST `/users/staff` | A | `{email, full_name, password}` → 201 `User` |
 | ✅ | PATCH `/users/{id}` | A | `{full_name?, is_active?}` → `User` |
-| 🔜 | POST `/customers/{id}/portal-invite` | A,S | → 202 (emails a set-password link) |
+| ✅ | POST `/customers/{id}/portal-invite` | A,S | → 202 (emails a set-password link) |
+
+Login is throttled after 5 failed attempts in 15 minutes (429 `RATE_LIMITED`). Reset links
+expire after 30 minutes and invites after 72 hours; both are single-use.
 
 Password rule: more than 8 chars, an uppercase letter, a lowercase letter and a special character.
 
@@ -58,7 +61,7 @@ Password rule: more than 8 chars, an uppercase letter, a lowercase letter and a 
 ### Quotations & subscriptions — Claude 1
 | Status | Method & path | Role | Notes |
 |---|---|---|---|
-| 🔜 | GET/POST `/quotation-templates`, GET/PATCH `/quotation-templates/{id}` | A,S | plan, plan_quantity, term_periods, validity_days, lines |
+| ✅ | GET/POST `/quotation-templates`, GET/PATCH `/quotation-templates/{id}` | A,S | plan, plan_quantity, term_periods, validity_days, lines |
 | ✅ | POST `/pricing/preview` | A,S | `{plan_id, plan_quantity, lines[], discount_id?}` → server totals |
 | ✅ | GET `/subscriptions?status&customer_id&plan_id&q&expired` | A,S | Page[`SubscriptionListItem`] |
 | ✅ | POST `/subscriptions` | A,S | `{customer_id, plan_id, plan_quantity, start_date, term_periods, payment_term_id, template_id?, discount_id?, notes?, lines:[{product_id, variant_id?, quantity, unit_price?}]}` → Draft |
@@ -113,7 +116,7 @@ sent_count, cancel_reason, replaces_invoice_id, lines[], payments[], available_a
 | 🔜 | GET `/invoices/{id}/payment-attempts` | A,S | Claude 2 |
 | 🔜 | POST `/invoices/{id}/collect` | A,S | charge via active mandate (Claude 2) |
 | 🔜 | GET `/mandates?customer_id` | A,S | Claude 2 |
-| 🔜 | POST `/webhooks/payments/{provider}` | provider | signature-verified; Claude 1 |
+| ✅ | POST `/webhooks/payments/{provider}` | provider | signature-verified; Claude 1 |
 
 Methods: `cash, bank_transfer, card, upi, cheque, other`. Generating an invoice never counts as
 payment: money exists only as a `posted` Payment.
@@ -130,21 +133,23 @@ payment: money exists only as a `posted` Payment.
 ### Portal (customer, session-scoped)
 | Status | Method & path | Owner |
 |---|---|---|
-| 🔜 | GET `/portal/summary` | Claude 1 |
-| 🔜 | GET `/portal/subscriptions`, GET `/portal/subscriptions/{id}` | Claude 1 |
-| 🔜 | POST `/portal/subscriptions/{id}/accept \| pause \| resume \| renew \| close` | Claude 1 |
-| 🔜 | GET `/portal/invoices`, GET `/portal/invoices/{id}` | Claude 1 |
-| 🔜 | GET/PATCH `/portal/profile` | Claude 1 |
+| ✅ | GET `/portal/summary` | Claude 1 |
+| ✅ | GET `/portal/subscriptions`, GET `/portal/subscriptions/{id}` | Claude 1 |
+| ✅ | POST `/portal/subscriptions/{id}/accept \| pause \| resume \| renew \| close` | Claude 1 |
+| ✅ | GET `/portal/invoices`, GET `/portal/invoices/{id}` | Claude 1 |
+| ✅ | GET/PATCH `/portal/profile` | Claude 1 |
 | 🔜 | GET `/portal/payments` | Claude 2 |
 | 🔜 | GET/POST `/portal/payment-methods`, DELETE `/portal/payment-methods/{id}` | Claude 2 |
+
+Portal visibility: customers never see draft subscriptions or draft invoices.
 
 ## Ownership (one writer per file)
 
 | Area | Owner | Files |
 |---|---|---|
 | Core, config, security, models, **all migrations** | Claude 1 | `backend/app/{main,config,db,deps,errors,security,money,pagination,models}.py`, `backend/migrations/**`, `backend/pyproject.toml`, `backend/uv.lock`, `backend/tests/conftest.py`, `backend/scripts/seed.py` |
-| Auth, users, invites, subscriptions, quotations, pricing, billing engine, invoices, portal (except payments), webhooks, worker | Claude 1 | `app/routers/{auth,users,invites,quotation_templates,pricing,subscriptions,invoices,billing,portal,webhooks}.py`, `app/schemas/{__init__,subscriptions,invoices,billing,portal}.py`, `app/services/{audit,periods,pricing,subscriptions,billing,invoices,numbering,email,tokens}.py`, `app/worker.py` |
-| Customers, catalog, discount rules, ledger, manual payments, provider adapters, collections, reports, portal payments | Claude 2 | `app/routers/{customers,taxes,payment_terms,products,plans,discounts,payments,collections,reports,portal_payments}.py`, `app/schemas/{customers,catalog,discounts,payments,reports}.py`, `app/services/{ledger,collections,reports}.py`, `app/providers/**` |
+| Auth, users, invites, subscriptions, quotations, pricing, billing engine, invoices, portal (except payments), webhooks, worker | Claude 1 | `app/routers/{auth,users,invites,quotation_templates,pricing,subscriptions,invoices,billing,portal,webhooks}.py`, `app/schemas/{__init__,subscriptions,invoices,billing,portal}.py`, `app/services/{audit,periods,pricing,subscriptions,billing,invoices,email,tokens,webhooks}.py`, `app/{presenters,logging_setup,worker}.py`, `app/schemas/quotations.py` |
+| Customers, catalog, discount rules, ledger, manual payments, provider adapters, collections, reports, portal payments | Claude 2 | `app/routers/{customers,taxes,payment_terms,products,plans,discounts,payments,collections,reports,portal_payments}.py`, `app/schemas/{customers,catalog,discounts,payments,reports}.py`, `app/services/{ledger,collections,reports,common}.py`, `app/providers/**`, `tests/business_factories.py` |
 | Frontend | Claude 3 | `frontend/**` only |
 | Tests | each owner | `backend/tests/test_<module>.py` for their own modules |
 
