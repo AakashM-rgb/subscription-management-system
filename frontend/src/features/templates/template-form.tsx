@@ -12,6 +12,7 @@ import { Section } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import { ProductLineRow, type LinesForm } from "@/features/subscriptions/line-row";
 import { api } from "@/lib/api/client";
+import type { Body } from "@/lib/api/contract";
 import { planOption, termOption, usePaymentTermOptions, usePlanOptions, useProductOptions } from "@/lib/api/reference";
 import type { QuotationTemplate } from "@/lib/api/types";
 import { BILLING_PERIOD_UNIT, formatMoney } from "@/lib/format";
@@ -81,9 +82,9 @@ export function TemplateForm({ template }: { template?: QuotationTemplate | null
         quantity: Number(l.quantity),
         unit_price: l.unit_price || null,
       })),
-    };
+    } satisfies Body<"TemplateCreateIn">;
     try {
-      if (template) await api.patch(`/quotation-templates/${template.id}`, { ...body, is_active: v.is_active });
+      if (template) await api.patch(`/quotation-templates/${template.id}`, { ...body, is_active: v.is_active } satisfies Body<"TemplateUpdateIn">);
       else await api.post("/quotation-templates", body);
       toast.success(template ? "Template saved" : "Template created");
       router.push("/console/quotation-templates");

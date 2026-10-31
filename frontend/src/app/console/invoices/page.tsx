@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { invoiceColumns } from "@/features/columns";
 import { api } from "@/lib/api/client";
+import type { Body } from "@/lib/api/contract";
 import { useApiMutation, usePaged } from "@/lib/api/hooks";
 import type { BulkConfirmResult, InvoiceListItem } from "@/lib/api/types";
 import { pluralize } from "@/lib/format";
@@ -43,7 +44,7 @@ export default function InvoicesPage() {
   });
 
   const bulk = useApiMutation<number[], BulkConfirmResult>({
-    mutationFn: (ids) => api.post<BulkConfirmResult>("/invoices/bulk-confirm", { invoice_ids: ids }),
+    mutationFn: (ids) => api.post<BulkConfirmResult>("/invoices/bulk-confirm", { invoice_ids: ids } satisfies Body<"BulkConfirmIn">),
     invalidate: ["invoices", "subscriptions", "reports"],
     success: (r) =>
       r.errors.length

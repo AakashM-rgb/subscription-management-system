@@ -4,6 +4,7 @@ import { use } from "react";
 
 import { ErrorState, PageSkeleton } from "@/components/feedback";
 import { PageHeader } from "@/components/page";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { OverdueBadge, StatusBadge } from "@/components/status-badge";
 import { InvoiceActions } from "@/features/invoices/invoice-actions";
 import { InvoiceDocument } from "@/features/invoices/invoice-document";
@@ -30,6 +31,18 @@ export default function PortalInvoicePage({ params }: { params: Promise<{ id: st
         }
         actions={<InvoiceActions invoice={inv} area="portal" />}
       />
+      {inv.status === "confirmed" && inv.collection_status === "pending" ? (
+        <Alert data-print="hide">
+          <AlertTitle>Automatic payment in progress</AlertTitle>
+          <AlertDescription>Your saved payment method is being charged. This invoice is marked paid only after your bank confirms the payment.</AlertDescription>
+        </Alert>
+      ) : null}
+      {inv.status === "confirmed" && inv.collection_status === "failed" ? (
+        <Alert variant="destructive" data-print="hide">
+          <AlertTitle>Automatic payment failed</AlertTitle>
+          <AlertDescription>We could not charge your saved payment method. We will retry automatically; you can also check your payment method in your profile.</AlertDescription>
+        </Alert>
+      ) : null}
       <InvoiceDocument invoice={inv} />
     </div>
   );

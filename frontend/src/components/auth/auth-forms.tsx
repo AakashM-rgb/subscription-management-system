@@ -14,6 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { FieldGroup } from "@/components/ui/field";
 import { api, ApiError, errorMessage } from "@/lib/api/client";
+import type { Body } from "@/lib/api/contract";
 import type { Me } from "@/lib/api/types";
 import { safeNextPath } from "@/lib/permissions";
 import { emailSchema, passwordSchema } from "@/lib/validation";
@@ -55,7 +56,7 @@ export function LoginForm() {
   async function onSubmit(values: z.infer<typeof loginSchema>) {
     setFormError(null);
     try {
-      const me = await api.post<Me>("/auth/login", values);
+      const me = await api.post<Me>("/auth/login", { ...values } satisfies Body<"LoginIn">);
       router.replace(safeNextPath(params.get("next"), me.role));
       router.refresh();
     } catch (error) {
@@ -143,7 +144,7 @@ export function SignupForm() {
 
   async function onSubmit({ full_name, email, password: pw }: z.infer<typeof signupSchema>) {
     try {
-      await api.post<Me>("/auth/signup", { full_name, email, password: pw });
+      await api.post<Me>("/auth/signup", { full_name, email, password: pw } satisfies Body<"SignupIn">);
       router.replace("/portal");
       router.refresh();
     } catch (error) {
@@ -210,7 +211,7 @@ export function ForgotPasswordForm() {
 
   async function onSubmit({ email }: z.infer<typeof forgotSchema>) {
     try {
-      await api.post("/auth/password/forgot", { email });
+      await api.post("/auth/password/forgot", { email } satisfies Body<"ForgotPasswordIn">);
       setSentTo(email);
     } catch (error) {
       if (error instanceof ApiError && error.isUnavailable) setUnavailable(true);
@@ -288,7 +289,7 @@ export function SetPasswordForm({ mode }: { mode: "reset" | "invite" }) {
     setFormError(null);
     try {
       if (mode === "reset") {
-        await api.post("/auth/password/reset", { token, password: pw });
+        await api.post("/auth/password/reset", { token, password: pw } satisfies Body<"ResetPasswordIn">);
         router.replace("/login?reset=1");
       } else {
         const me = await api.post<Me>("/auth/invite/accept", { token, password: pw });

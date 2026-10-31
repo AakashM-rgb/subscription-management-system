@@ -90,8 +90,28 @@ state, overdue days, collection status, payment attempts, failures and next retr
 - `npm run test:e2e`: set `E2E_BASE_URL`, `E2E_ADMIN_EMAIL`, `E2E_ADMIN_PASSWORD` (and `E2E_CHANNEL=chrome`
   to use installed Chrome). The default suite is read-only: route protection, every console page against
   the live API, axe WCAG 2.1 AA checks, URL filters, mobile navigation and sign-out.
-  `E2E_ALLOW_WRITES=1` adds flows that create records (signup and portal isolation, staff creation
-  and role limits, quotation → subscription → invoice → payment). Use a disposable database only.
+- Write-enabled flows (`e2e/write-*.spec.ts`) create records and run only with **both**
+  `E2E_ALLOW_WRITES=1` and `E2E_DATABASE_URL` pointing at a disposable database whose name contains
+  `e2e` (the suite refuses anything else). The backend under test must use that same database; the
+  tests read it only to fetch emailed reset links from `email_outbox`. They cover signup → login →
+  logout → forgot/reset password, admin-only staff creation and staff/customer limits, every portal
+  and staff page, tax/term/product+variant/plan/discount/customer forms with validation, quotation →
+  customer acceptance → billing → idempotent billing run → confirm → print → partial and full payment
+  → void, cancel and re-issue, manual collection (nothing claimed without the backend), portal data
+  isolation, and pause/resume/renew/close with audit history.
+
+```powershell
+# backend (from the integration branch) on the disposable DB, origin allowed for :3100
+$env:DATABASE_URL="postgresql+psycopg://sms:<pw>@127.0.0.1:55432/sms_e2e_frontend"
+uv run alembic upgrade head; uv run python -m scripts.seed; uv run python -m scripts.seed_demo
+$env:ALLOWED_ORIGINS="http://localhost:3100"; $env:APP_BASE_URL="http://localhost:3100"
+uv run uvicorn app.main:app --port 8100
+# frontend
+$env:BACKEND_URL="http://127.0.0.1:8100"; npm run build; npx next start -p 3100
+$env:E2E_BASE_URL="http://localhost:3100"; $env:E2E_ALLOW_WRITES="1"
+$env:E2E_DATABASE_URL="postgresql://sms:<pw>@127.0.0.1:55432/sms_e2e_frontend"
+$env:E2E_ADMIN_EMAIL="..."; $env:E2E_ADMIN_PASSWORD="..."; npm run test:e2e
+```
 
 ## Deploy
 

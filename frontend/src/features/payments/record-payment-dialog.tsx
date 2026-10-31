@@ -11,6 +11,7 @@ import { applyServerErrors, MoneyField, SelectField, TextareaField, TextField } 
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { PAYMENT_METHOD_LABEL } from "@/features/columns";
 import { api, ApiError } from "@/lib/api/client";
+import type { Body } from "@/lib/api/contract";
 import { useApiMutation } from "@/lib/api/hooks";
 import type { InvoiceListItem, Payment, PaymentMethod } from "@/lib/api/types";
 import { formatDate, formatMoney, todayISO } from "@/lib/format";
@@ -72,7 +73,7 @@ function RecordPaymentForm({
     mutationFn: (v) =>
       api.post<Payment>(
         "/payments",
-        { invoice_id: Number(v.invoice_id), method: v.method, amount: v.amount, payment_date: v.payment_date, note: v.note.trim() || null },
+        { invoice_id: Number(v.invoice_id), method: v.method, amount: v.amount, payment_date: v.payment_date, note: v.note.trim() || null } satisfies Body<"PaymentCreateIn">,
         { "Idempotency-Key": key },
       ),
     invalidate: ["invoices", "payments", "reports", "customers", "subscriptions"],

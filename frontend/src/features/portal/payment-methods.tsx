@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { api, ApiError, errorMessage } from "@/lib/api/client";
+import type { Body } from "@/lib/api/contract";
 import { useApiMutation } from "@/lib/api/hooks";
 import type { Mandate, MandateSetup, RazorpayCheckout } from "@/lib/api/types";
 import { formatDate, formatMoney, humanize } from "@/lib/format";
@@ -61,7 +62,7 @@ export function PaymentMethodsSection() {
   async function startSetup() {
     setBusy(true);
     try {
-      const setup = await api.post<MandateSetup>("/portal/payment-methods", { method_type: methodType });
+      const setup = await api.post<MandateSetup>("/portal/payment-methods", { method_type: methodType } satisfies Body<"MandateStartIn">);
       const checkout = setup.checkout as RazorpayCheckout;
       if (checkout.provider !== "razorpay") throw new Error("This payment provider is not supported in the browser yet.");
       await loadCheckout();
@@ -79,14 +80,17 @@ export function PaymentMethodsSection() {
         theme: { color: "#4f46e5" },
         handler: async (response: Record<string, string>) => {
           try {
-            await api.post(`/portal/payment-methods/${setup.mandate.id}/confirm`, {
+            const mandate = await api.post<Mandate>(`/portal/payment-methods/${setup.mandate.id}/confirm`, {
               provider_response: {
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_signature: response.razorpay_signature,
               },
-            });
-            toast.success("Autopay is set up. Future invoices are paid automatically.");
+            } satisfies Body<"MandateConfirmIn">);
+            // Only the backend's answer counts: a mandate can stay pending until the bank confirms it.
+            if (mandate.status === "active") toast.success("Autopay is active. Future invoices are charged automatically.");
+            else if (mandate.status === "pending") toast.info("Authorisation received. Autopay starts once your bank confirms the mandate.");
+            else toast.error(`Autopay could not be set up (status: ${humanize(mandate.status)}).`);
           } catch (error) {
             toast.error(errorMessage(error));
           } finally {

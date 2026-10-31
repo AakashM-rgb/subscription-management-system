@@ -1,6 +1,6 @@
 "use client";
 
-import { History, ReceiptText } from "lucide-react";
+import { CreditCard, History, ReceiptText } from "lucide-react";
 import { use, useState } from "react";
 
 import { DataTable } from "@/components/data-table";
@@ -8,6 +8,7 @@ import { EmptyState, ErrorState, PageSkeleton, TableSkeleton } from "@/component
 import { PageBody, PageHeader, Section } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CustomerMandates } from "@/features/collections/mandates";
 import { invoiceColumns } from "@/features/columns";
 import { EventTimeline } from "@/features/subscriptions/event-timeline";
 import { SubscriptionActions } from "@/features/subscriptions/subscription-actions";
@@ -67,6 +68,9 @@ export default function SubscriptionDetailPage({ params }: { params: Promise<{ i
           <TabsTrigger value="activity">
             <History /> Activity
           </TabsTrigger>
+          <TabsTrigger value="autopay">
+            <CreditCard /> Autopay
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="billing">
           <DataTable
@@ -118,6 +122,14 @@ export default function SubscriptionDetailPage({ params }: { params: Promise<{ i
               </>
             )}
           </Section>
+        </TabsContent>
+        <TabsContent value="autopay" className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            {s.auto_collect
+              ? "Automatic collection is on: confirmed invoices are charged to the active mandate below."
+              : "Automatic collection is off for this subscription; invoices are paid manually."}
+          </p>
+          <CustomerMandates customerId={s.customer.id} compact />
         </TabsContent>
       </Tabs>
     </PageBody>

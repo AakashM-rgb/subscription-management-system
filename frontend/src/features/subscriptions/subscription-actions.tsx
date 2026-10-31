@@ -22,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api/client";
+import type { Body } from "@/lib/api/contract";
 import { useApiMutation } from "@/lib/api/hooks";
 import { useDiscountOptions } from "@/lib/api/reference";
 import type { BillingRun, Subscription } from "@/lib/api/types";
@@ -206,7 +207,7 @@ export function SubscriptionActions({ subscription, area }: { subscription: Subs
         open={closeOpen}
         onOpenChange={setCloseOpen}
         subscription={s}
-        onConfirm={(reason) => transition.mutateAsync({ path: "close", body: reason ? { reason } : {}, success: "Subscription closed" })}
+        onConfirm={(reason) => transition.mutateAsync({ path: "close", body: (reason ? { reason } : {}) satisfies Body<"CloseIn">, success: "Subscription closed" })}
       />
       {area === "console" ? <DiscountDialog open={discountOpen} onOpenChange={setDiscountOpen} subscription={s} /> : null}
     </>
@@ -280,7 +281,7 @@ function DiscountDialog({
     mutationFn: () =>
       api.put<Subscription>(`/subscriptions/${subscription.id}/discount`, {
         discount_id: selected === NO_DISCOUNT ? null : Number(selected),
-      }),
+      } satisfies Body<"DiscountAttachIn">),
     invalidate: ["subscriptions"],
     success: selected === NO_DISCOUNT ? "Discount removed" : "Discount attached",
   });

@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { PAYMENT_METHOD_LABEL, paymentColumns } from "@/features/columns";
 import { RecordPaymentDialog } from "@/features/payments/record-payment-dialog";
 import { api } from "@/lib/api/client";
+import type { Body } from "@/lib/api/contract";
 import { useApiMutation, usePaged } from "@/lib/api/hooks";
 import type { Payment } from "@/lib/api/types";
 import { formatDate, formatMoney } from "@/lib/format";
@@ -36,7 +37,7 @@ export default function PaymentsPage() {
   });
 
   const voidPayment = useApiMutation<{ id: number; reason: string }, Payment>({
-    mutationFn: ({ id, reason: r }) => api.post<Payment>(`/payments/${id}/void`, { reason: r }),
+    mutationFn: ({ id, reason: r }) => api.post<Payment>(`/payments/${id}/void`, { reason: r } satisfies Body<"PaymentVoidIn">),
     invalidate: ["payments", "invoices", "reports", "customers"],
     success: (p) => `Payment ${p.number} voided; the invoice is open again`,
   });

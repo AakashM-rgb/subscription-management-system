@@ -49,3 +49,10 @@ export type ContractChecks = [
   Assert<SameKeys<T.PortalSummary, Schemas["PortalSummaryOut"]>>,
   Assert<SameKeys<T.PortalProfile, Schemas["ProfileOut"]>>,
 ];
+
+/**
+ * Request bodies typed against the backend input schemas. The backend forbids unknown fields (422),
+ * so every payload is written as `{ ... } satisfies Body<"XxxIn">` to catch typos and extra fields
+ * at compile time.
+ */
+export type Body<K extends keyof Schemas & `${string}In`> = Schemas[K];

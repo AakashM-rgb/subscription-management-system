@@ -17,6 +17,7 @@ import { useSession } from "@/components/session";
 import { Pill, StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api/client";
+import type { Body } from "@/lib/api/contract";
 import { useApiMutation, usePaged } from "@/lib/api/hooks";
 import type { User } from "@/lib/api/types";
 import { formatDate } from "@/lib/format";
@@ -35,7 +36,7 @@ function AddStaffDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
   const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: { full_name: "", email: "", password: "" }, mode: "onTouched" });
   const password = useWatch({ control: form.control, name: "password" });
   const mutation = useApiMutation<Values, User>({
-    mutationFn: (v) => api.post<User>("/users/staff", v),
+    mutationFn: (v) => api.post<User>("/users/staff", { ...v } satisfies Body<"StaffCreateIn">),
     invalidate: ["users"],
     success: (u) => `${u.full_name} can now sign in as staff`,
     toastError: false,
@@ -82,7 +83,7 @@ export function StaffPage() {
   const query = usePaged<User>("users", "/users", { page: list.page, page_size: list.pageSize, role: list.filters.role || undefined });
 
   const setActive = useApiMutation<{ user: User; active: boolean }, User>({
-    mutationFn: ({ user, active }) => api.patch<User>(`/users/${user.id}`, { is_active: active }),
+    mutationFn: ({ user, active }) => api.patch<User>(`/users/${user.id}`, { is_active: active } satisfies Body<"UserUpdateIn">),
     invalidate: ["users"],
     success: (u) => (u.is_active ? `${u.full_name} reactivated` : `${u.full_name} deactivated and signed out`),
   });

@@ -15,6 +15,7 @@ import { Can, useCan } from "@/components/session";
 import { Pill, StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api/client";
+import type { Body } from "@/lib/api/contract";
 import { useApiMutation, usePaged } from "@/lib/api/hooks";
 import { taxOption, useTaxOptions } from "@/lib/api/reference";
 import type { BillingPeriod, Plan } from "@/lib/api/types";
@@ -81,8 +82,8 @@ function PlanFormDialog({ open, onOpenChange, plan }: { open: boolean; onOpenCha
         closable: v.closable,
         pausable: v.pausable,
         renewable: v.renewable,
-      };
-      return plan ? api.patch<Plan>(`/plans/${plan.id}`, { ...body, is_active: v.is_active }) : api.post<Plan>("/plans", body);
+      } satisfies Body<"PlanCreateIn">;
+      return plan ? api.patch<Plan>(`/plans/${plan.id}`, { ...body, is_active: v.is_active } satisfies Body<"PlanUpdateIn">) : api.post<Plan>("/plans", body);
     },
     invalidate: ["plans"],
     success: plan ? "Plan updated" : "Plan created",

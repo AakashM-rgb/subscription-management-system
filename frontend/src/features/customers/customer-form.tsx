@@ -8,6 +8,7 @@ import { z } from "zod";
 import { FormDialog } from "@/components/form-dialog";
 import { applyServerErrors, SwitchField, TextareaField, TextField } from "@/components/form-fields";
 import { api } from "@/lib/api/client";
+import type { Body } from "@/lib/api/contract";
 import { useApiMutation } from "@/lib/api/hooks";
 import type { Customer } from "@/lib/api/types";
 import { emailSchema, toNullable } from "@/lib/validation";
@@ -60,9 +61,9 @@ export function CustomerFormDialog({
         company_name: toNullable(values.company_name),
         address: toNullable(values.address),
         tax_id: toNullable(values.tax_id),
-      };
+      } satisfies Body<"CustomerCreateIn">;
       return customer
-        ? api.patch<Customer>(`/customers/${customer.id}`, { ...body, is_active: values.is_active })
+        ? api.patch<Customer>(`/customers/${customer.id}`, { ...body, is_active: values.is_active } satisfies Body<"CustomerUpdateIn">)
         : api.post<Customer>("/customers", body);
     },
     invalidate: ["customers"],

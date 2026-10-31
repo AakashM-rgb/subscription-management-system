@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RecordPaymentDialog } from "@/features/payments/record-payment-dialog";
 import { api } from "@/lib/api/client";
+import type { Body } from "@/lib/api/contract";
 import { useApiMutation } from "@/lib/api/hooks";
 import type { Invoice } from "@/lib/api/types";
 import { formatDate, formatMoney } from "@/lib/format";
@@ -118,7 +119,7 @@ export function InvoiceActions({ invoice: inv, area }: { invoice: Invoice; area:
         confirmLabel={reissue ? "Cancel & re-issue" : "Cancel invoice"}
         destructive
         onConfirm={() =>
-          act.mutateAsync({ path: "cancel", body: { reason: reason.trim(), reissue }, success: reissue ? "Invoice cancelled and re-issued" : "Invoice cancelled" })
+          act.mutateAsync({ path: "cancel", body: { reason: reason.trim(), reissue } satisfies Body<"CancelIn">, success: reissue ? "Invoice cancelled and re-issued" : "Invoice cancelled" })
         }
       />
       {area === "console" ? <RecordPaymentDialog open={dialog === "pay"} onOpenChange={(o) => setDialog(o ? "pay" : null)} invoice={inv} /> : null}

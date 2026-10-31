@@ -108,7 +108,7 @@ export function invoiceColumns(
         <div className="flex flex-wrap gap-1">
           <StatusBadge kind="invoice" value={row.original.status} />
           {row.original.is_overdue ? <OverdueBadge days={row.original.days_overdue} /> : null}
-          {row.original.collection_status === "failed" || row.original.collection_status === "pending" ? (
+          {row.original.collection_status !== "none" ? (
             <StatusBadge kind="collection" value={row.original.collection_status} />
           ) : null}
         </div>
