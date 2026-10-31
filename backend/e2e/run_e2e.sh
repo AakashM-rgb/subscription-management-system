@@ -18,6 +18,9 @@ export E2E_STATE_FILE="${TMPDIR:-/tmp}/brightloop_e2e_state.json"
 uv run alembic upgrade head
 uv run python -m scripts.seed
 
+if curl -s -o /dev/null "$E2E_BASE_URL/api/v1/health"; then
+  echo "refusing: something is already listening on port $PORT (stale server?)"; exit 3
+fi
 uv run uvicorn app.main:app --port "$PORT" > e2e-backend.log 2>&1 &
 API_PID=$!
 trap 'kill $API_PID 2>/dev/null || true' EXIT
