@@ -32,11 +32,14 @@ HEARTBEAT_FILE = Path(gettempdir()) / "brightloop-worker.heartbeat"
 def job_billing() -> None:
     with SessionLocal() as db:
         try:
-            billing.run_billing(db, as_of=business_today(), trigger="scheduled")
+            run = billing.run_billing(db, as_of=business_today(), trigger="scheduled")
         except AppError as exc:
             if exc.code != "BILLING_RUN_IN_PROGRESS":
                 raise
             log.info("billing run skipped: another run is in progress")
+            return
+    if run.invoices_created:
+        job_collections()  # start autopay collection for auto-confirmed invoices right away
 
 
 def job_emails() -> None:
