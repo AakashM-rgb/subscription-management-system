@@ -15,19 +15,14 @@ from app.providers.config import ProviderSettings
 from app.services import collections
 from tests import business_factories as f
 from tests.conftest import login, make_user
-from tests.fake_provider import FakeProvider, sign
+from tests.fake_provider import FakeProvider, install, sign
 
 API = "/api/v1"
 
 
 @pytest.fixture
 def fake(monkeypatch) -> FakeProvider:
-    provider = FakeProvider()
-    providers.register("fakepay", lambda: provider)
-    monkeypatch.setattr(providers, "default_provider_name", lambda: "fakepay")
-    monkeypatch.setattr("app.routers.portal_payments.default_provider_name", lambda: "fakepay")
-    yield provider
-    providers.unregister("fakepay")
+    yield from install(monkeypatch)
 
 
 def active_mandate(db: Session, customer, max_amount: str | None = None) -> PaymentMandate:

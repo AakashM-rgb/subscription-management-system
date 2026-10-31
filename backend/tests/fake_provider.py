@@ -21,6 +21,18 @@ from app.providers import (
 SECRET = b"fake-webhook-secret"
 
 
+def install(monkeypatch):
+    """Generator for a pytest fixture: register a fresh FakeProvider as the default provider."""
+    from app import providers
+
+    provider = FakeProvider()
+    providers.register("fakepay", lambda: provider)
+    monkeypatch.setattr(providers, "default_provider_name", lambda: "fakepay")
+    monkeypatch.setattr("app.routers.portal_payments.default_provider_name", lambda: "fakepay")
+    yield provider
+    providers.unregister("fakepay")
+
+
 @dataclass
 class FakeProvider:
     name: str = "fakepay"

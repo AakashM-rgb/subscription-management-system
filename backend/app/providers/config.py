@@ -24,6 +24,11 @@ class ProviderSettings(BaseSettings):
     collection_retry_hours: str = "24,72,168"
     # Attempts still pending after this many minutes are checked with the provider.
     reconcile_after_minutes: int = 15
+    # A charge the provider still reports as pending after this long is given up on (no
+    # automatic retry, so it cannot double-charge); a late success is still recorded.
+    pending_timeout_hours: int = 72
+    # Unfinished payment-method setups a customer may have at once.
+    max_pending_mandates: int = 3
 
     @property
     def retry_delays_hours(self) -> list[int]:

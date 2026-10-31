@@ -87,6 +87,7 @@ class ChargeResult:
     provider_reference: str  # the provider object our attempt tracks (e.g. an order id)
     provider_payment_id: str | None = None
     amount: Decimal | None = None
+    currency: str | None = None
     method_type: str | None = None
     failure_code: str | None = None
     failure_message: str | None = None
@@ -113,6 +114,7 @@ class NormalizedEvent:
     provider_reference: str | None = None
     provider_payment_id: str | None = None
     amount: Decimal | None = None
+    currency: str | None = None
     method_type: str | None = None
     display_hint: str | None = None
     failure_code: str | None = None
