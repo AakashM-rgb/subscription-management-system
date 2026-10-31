@@ -27,12 +27,18 @@ class JsonFormatter(logging.Formatter):
 
 def configure_logging(level: str = "INFO") -> None:
     root = logging.getLogger()
-    if any(isinstance(h.formatter, JsonFormatter) for h in root.handlers):
-        return
-    handler = logging.StreamHandler()
-    handler.setFormatter(JsonFormatter())
-    root.handlers = [handler]
-    root.setLevel(level)
+    if not any(isinstance(h.formatter, JsonFormatter) for h in root.handlers):
+        handler = logging.StreamHandler()
+        handler.setFormatter(JsonFormatter())
+        root.handlers = [handler]
+        root.setLevel(level)
+    # Uvicorn installs plain-text handlers: send its logs through the JSON root handler instead,
+    # and replace its access log with app.access (which carries the request id and duration).
+    for name in ("uvicorn", "uvicorn.error"):
+        server_logger = logging.getLogger(name)
+        server_logger.handlers = []
+        server_logger.propagate = True
+    logging.getLogger("uvicorn.access").disabled = True
 
 
 def new_request_id(incoming: str | None) -> str:

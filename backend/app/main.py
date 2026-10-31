@@ -1,5 +1,7 @@
 import importlib
+import logging
 import pkgutil
+import time
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -13,6 +15,7 @@ from app.logging_setup import configure_logging, new_request_id, request_id_var
 from app.models import BillingRun
 
 API_PREFIX = "/api/v1"
+access_log = logging.getLogger("app.access")
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 # Provider webhooks are server-to-server calls authenticated by signature, not by cookie.
 CSRF_EXEMPT_PREFIXES = (f"{API_PREFIX}/webhooks/",)
@@ -48,11 +51,21 @@ def create_app() -> FastAPI:
     @application.middleware("http")
     async def request_id(request: Request, call_next):
         token = request_id_var.set(new_request_id(request.headers.get("x-request-id")))
+        started = time.perf_counter()
+        status = 500
         try:
             response = await call_next(request)
+            status = response.status_code
             response.headers["X-Request-ID"] = request_id_var.get()
             return response
         finally:
+            access_log.info(
+                "%s %s %s %.1fms",
+                request.method,
+                request.url.path,  # path only: query strings may carry tokens
+                status,
+                (time.perf_counter() - started) * 1000,
+            )
             request_id_var.reset(token)
 
     @application.middleware("http")
