@@ -24,3 +24,5 @@ next-env.d.ts
 Thumbs.db
 .vscode/
 .idea/
+e2e-*.log
+.e2e_state.json
