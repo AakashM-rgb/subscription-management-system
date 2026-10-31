@@ -78,3 +78,21 @@ class TaxRef(ResponseModel):
     id: int
     name: str
     rate: Decimal
+
+
+class ForgotPasswordIn(RequestModel):
+    email: str = Field(max_length=254)
+
+
+class ResetPasswordIn(RequestModel):
+    token: str = Field(min_length=10, max_length=200)
+    password: str
+
+    _pw = field_validator("password")(_check_password)
+
+
+class ChangePasswordIn(RequestModel):
+    current_password: str = Field(max_length=128)
+    new_password: str
+
+    _pw = field_validator("new_password")(_check_password)
