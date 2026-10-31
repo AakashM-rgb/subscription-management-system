@@ -306,11 +306,8 @@ test("lifecycle: pause, resume, renew and close with history", async ({ browser 
   }
 });
 
-// Backend bug reported to Claude 1: CloseIn.reason allows 200 characters but subscriptions.close_reason is
-// VARCHAR(24), so a longer reason returns HTTP 500. Marked as an expected failure until the column is widened;
-// when the backend is fixed this test starts passing and Playwright flags it, so the marker can be removed.
-test("closing with a reason longer than 24 characters", async ({ browser }) => {
-  test.fail(true, "Backend: close_reason VARCHAR(24) vs CloseIn max_length 200 (reported to Claude 1)");
+// Regression: close reasons up to 200 characters (backend fix 1591bb3 widened close_reason from VARCHAR(24)).
+test("closing with a long reason is stored and shown", async ({ browser }) => {
   const page = await adminPage(browser);
   const sub = await apiCall<{ id: number }>(page.request, "post", "/subscriptions", {
     customer_id: ids.customerId,
@@ -323,6 +320,10 @@ test("closing with a reason longer than 24 characters", async ({ browser }) => {
   await apiCall(page.request, "post", `/subscriptions/${sub.id}/confirm`);
   await page.goto(`/console/subscriptions/${sub.id}`);
   await page.getByRole("button", { name: "Close", exact: true }).click();
-  await page.getByRole("alertdialog").getByLabel(/Reason/).fill("Customer moved to the yearly enterprise plan");
+  const reason = "Customer moved to the yearly enterprise plan after the seat review";
+  await page.getByRole("alertdialog").getByLabel(/Reason/).fill(reason);
   await confirmDialog(page, "Close subscription", "Subscription closed");
+  await expect(page.getByText(reason)).toBeVisible();
+  const closed = await apiCall<{ status: string; close_reason: string }>(page.request, "get", `/subscriptions/${sub.id}`);
+  expect(closed).toMatchObject({ status: "closed", close_reason: reason });
 });
