@@ -21,7 +21,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import and_, exists, func, select
+from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -137,7 +137,19 @@ def start_mandate(
         raise AppError(
             422, "VALIDATION_ERROR", "Add a phone number to the profile before enabling autopay"
         )
-    limit = money(max_amount or Decimal(get_provider_settings().default_mandate_max_amount))
+    settings = get_provider_settings()
+    pending = db.scalar(
+        select(func.count())
+        .select_from(PaymentMandate)
+        .where(PaymentMandate.customer_id == customer.id, PaymentMandate.status == "pending")
+    )
+    if pending >= settings.max_pending_mandates:
+        raise AppError(
+            409,
+            "INVALID_STATE",
+            "Finish or remove the payment methods already being set up before adding another",
+        )
+    limit = money(max_amount or Decimal(settings.default_mandate_max_amount))
     existing_customer_id = db.scalar(
         select(PaymentMandate.provider_customer_id).where(
             PaymentMandate.customer_id == customer.id,
@@ -279,9 +291,17 @@ def cancel_mandate(db: Session, *, mandate: PaymentMandate, actor: User | None) 
 
 def _mandate_for(db: Session, invoice: Invoice, manual: bool) -> PaymentMandate | None:
     sub = db.get(Subscription, invoice.subscription_id)
+    if not manual and (sub is None or sub.status not in LIVE_SUBSCRIPTIONS):
+        # Automatic charges stop when the subscription is closed; staff can still collect
+        # an outstanding invoice deliberately (manual=True), which is audited.
+        return None
     if sub is not None and sub.mandate_id is not None and (sub.auto_collect or manual):
         mandate = db.get(PaymentMandate, sub.mandate_id)
-        if mandate is not None and mandate.status == "active":
+        if (
+            mandate is not None
+            and mandate.status == "active"
+            and mandate.customer_id == invoice.customer_id  # only the payer's own authorisation
+        ):
             return mandate
     if not manual:
         return None
@@ -430,10 +450,26 @@ def apply_charge_result(
     attempt.next_retry_at = None
     attempt.failure_code = attempt.failure_message = None
     db.flush()
+    amount = result.amount if result.amount is not None else attempt.amount
+    if amount != attempt.amount:
+        # Record what was actually taken; staff see why the invoice is not fully paid.
+        audit.record(
+            db,
+            action="collection.amount_mismatch",
+            entity_type="invoice",
+            entity_id=invoice.id,
+            actor_type="provider",
+            data={
+                "attempt_id": attempt.id,
+                "requested": str(attempt.amount),
+                "taken": str(amount),
+            },
+        )
     _post_provider_payment(
         db,
         invoice=invoice,
-        amount=result.amount or attempt.amount,
+        amount=amount,
+        currency=result.currency,
         provider=attempt.provider,
         provider_payment_id=result.provider_payment_id or result.provider_reference,
         method_type=result.method_type,
@@ -448,6 +484,7 @@ def _post_provider_payment(
     *,
     invoice: Invoice,
     amount: Decimal,
+    currency: str | None,
     provider: str,
     provider_payment_id: str,
     method_type: str | None,
@@ -456,6 +493,12 @@ def _post_provider_payment(
 ) -> None:
     """Record money the provider has taken. Never raises for business-rule conflicts."""
     try:
+        if currency is not None and currency.upper() != invoice.currency.upper():
+            raise AppError(
+                422,
+                "CURRENCY_MISMATCH",
+                f"A payment in {currency} cannot settle an invoice in {invoice.currency}",
+            )
         with db.begin_nested():
             ledger.record_payment(
                 db,
@@ -511,6 +554,11 @@ def _eligible_invoice_ids(db: Session, today) -> list[int]:
                 Invoice.amount_total > Invoice.amount_paid,
                 Invoice.invoice_date <= today,
                 Subscription.auto_collect.is_(True),
+                Subscription.status.in_(LIVE_SUBSCRIPTIONS),
+                or_(
+                    PaymentMandate.max_amount.is_(None),
+                    Invoice.amount_total - Invoice.amount_paid <= PaymentMandate.max_amount,
+                ),
                 ~any_attempt,
             )
             .order_by(Invoice.due_date, Invoice.id)
@@ -618,6 +666,24 @@ def _reconcile_attempt(db: Session, attempt: PaymentAttempt, now: datetime) -> i
         )
     else:
         result = get_adapter(attempt.provider).fetch_charge(attempt.provider_reference)
+        timeout = timedelta(hours=get_provider_settings().pending_timeout_hours)
+        if result.status == "processing" and attempt.created_at < now - timeout:
+            # Give up so the invoice can be paid another way. No automatic retry: the
+            # provider might still capture this charge, and a late success is still recorded.
+            apply_charge_result(
+                db,
+                attempt,
+                ChargeResult(
+                    status="failed",
+                    provider_reference=attempt.provider_reference,
+                    failure_code="timed_out",
+                    failure_message="The provider did not confirm the charge in time",
+                ),
+                now,
+            )
+            attempt.next_retry_at = None
+            db.flush()
+            return 1
     if apply_charge_result(db, attempt, result, now) == "ignored":
         # Still pending at the provider (UPI can take 24-36h): rotate to the back of the queue
         # so a backlog of slow charges cannot starve newer ones.
@@ -698,6 +764,7 @@ def handle_event(db: Session, event: ProviderEvent) -> str:
         provider_reference=ev.provider_reference,
         provider_payment_id=ev.provider_payment_id,
         amount=ev.amount,
+        currency=ev.currency,
         method_type=ev.method_type,
         failure_code=ev.failure_code,
         failure_message=ev.failure_message,
@@ -738,6 +805,7 @@ def handle_event(db: Session, event: ProviderEvent) -> str:
         db,
         invoice=invoice,
         amount=result.amount or ZERO,
+        currency=result.currency,
         provider=event.provider,
         provider_payment_id=result.provider_payment_id or result.provider_reference,
         method_type=result.method_type,
