@@ -259,7 +259,7 @@ class Subscription(TimestampMixin, Base):
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     activated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    close_reason: Mapped[str | None] = mapped_column(String(24))
+    close_reason: Mapped[str | None] = mapped_column(String(200))
     amount_untaxed: Mapped[Decimal] = mapped_column(Money, server_default=text("0"))
     amount_discount: Mapped[Decimal] = mapped_column(Money, server_default=text("0"))
     amount_tax: Mapped[Decimal] = mapped_column(Money, server_default=text("0"))
