@@ -742,13 +742,8 @@ def test_product_rule_discounts_only_that_product(admin_client, db, billing_setu
     assert inv.amount_discount == D("50.00")
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Billing engine (Claude 1) dates catch-up invoices at the run date and checks "
-    "discount validity on that date, so periods billed late lose a discount that was valid "
-    "in their own period. Reported to Claude 1; this test flips to passing once fixed.",
-)
 def test_catch_up_billing_keeps_discount_valid_in_each_period(admin_client, db, billing_setup):
+    """Billing that falls behind still applies a discount in the periods it was valid for."""
     rule = create_rule(admin_client, valid_until="2026-02-28")
     sub = billed_sub(db, billing_setup, seats=2, discount_id=rule["id"])
     billing.run_billing(db, as_of=date(2026, 4, 1), trigger="manual", subscription_id=sub.id)
