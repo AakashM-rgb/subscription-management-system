@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api/client";
 import type { Body } from "@/lib/api/contract";
 import { useApiMutation, usePaged } from "@/lib/api/hooks";
-import type { User } from "@/lib/api/types";
+import type { Page, User } from "@/lib/api/types";
 import { formatDate } from "@/lib/format";
 import { ROLE_LABEL } from "@/lib/permissions";
 import { useListState } from "@/lib/use-list-state";
@@ -32,7 +32,15 @@ const schema = z.object({
 });
 type Values = z.infer<typeof schema>;
 
-function AddStaffDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+function AddStaffDialog({
+  open,
+  onOpenChange,
+  onCreated,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  onCreated: (user: User) => void;
+}) {
   const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: { full_name: "", email: "", password: "" }, mode: "onTouched" });
   const password = useWatch({ control: form.control, name: "password" });
   const mutation = useApiMutation<Values, User>({
@@ -40,9 +48,10 @@ function AddStaffDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
     invalidate: ["users"],
     success: (u) => `${u.full_name} can now sign in as staff`,
     toastError: false,
-    onSuccess: () => {
+    onSuccess: (user) => {
       form.reset();
       onOpenChange(false);
+      onCreated(user);
     },
   });
   return (
@@ -81,6 +90,16 @@ export function StaffPage() {
   const [adding, setAdding] = useState(false);
   const [toggle, setToggle] = useState<User | null>(null);
   const query = usePaged<User>("users", "/users", { page: list.page, page_size: list.pageSize, role: list.filters.role || undefined });
+
+  // Users are listed oldest first; after adding someone, jump to the staff page that holds them.
+  async function showNewest() {
+    try {
+      const staff = await api.get<Page<User>>("/users", { role: "staff", page: 1, page_size: 1 });
+      list.update({ role: "staff", page: Math.max(1, Math.ceil(staff.total / list.pageSize)) });
+    } catch {
+      list.update({ role: "staff" });
+    }
+  }
 
   const setActive = useApiMutation<{ user: User; active: boolean }, User>({
     mutationFn: ({ user, active }) => api.patch<User>(`/users/${user.id}`, { is_active: active } satisfies Body<"UserUpdateIn">),
@@ -158,7 +177,7 @@ export function StaffPage() {
         onClearFilters={list.clear}
         empty={<EmptyState icon={ShieldCheck} title="No users" />}
       />
-      <AddStaffDialog open={adding} onOpenChange={setAdding} />
+      <AddStaffDialog open={adding} onOpenChange={setAdding} onCreated={showNewest} />
       <ConfirmDialog
         open={toggle !== null}
         onOpenChange={(open) => (!open ? setToggle(null) : undefined)}
