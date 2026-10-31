@@ -15,6 +15,7 @@ import { Can, useCan } from "@/components/session";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api/client";
+import type { Body } from "@/lib/api/contract";
 import { useApiMutation, usePaged } from "@/lib/api/hooks";
 import type { PaymentTerm } from "@/lib/api/types";
 import { useListState } from "@/lib/use-list-state";
@@ -35,9 +36,9 @@ function TermDialog({ open, onOpenChange, term }: { open: boolean; onOpenChange:
   }, [open, term, form]);
   const mutation = useApiMutation<Values, PaymentTerm>({
     mutationFn: (v) => {
-      const body = { name: v.name, due_days: Number(v.due_days) };
+      const body = { name: v.name, due_days: Number(v.due_days) } satisfies Body<"PaymentTermCreateIn">;
       return term
-        ? api.patch<PaymentTerm>(`/payment-terms/${term.id}`, { ...body, is_active: v.is_active })
+        ? api.patch<PaymentTerm>(`/payment-terms/${term.id}`, { ...body, is_active: v.is_active } satisfies Body<"PaymentTermUpdateIn">)
         : api.post<PaymentTerm>("/payment-terms", body);
     },
     invalidate: ["payment-terms"],

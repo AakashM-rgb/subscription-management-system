@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { ChangePasswordSection } from "@/features/account/change-password";
 import { PaymentMethodsSection } from "@/features/portal/payment-methods";
 import { api } from "@/lib/api/client";
+import type { Body } from "@/lib/api/contract";
 import { useApiMutation, useResource } from "@/lib/api/hooks";
 import type { PortalProfile } from "@/lib/api/types";
 import { toNullable } from "@/lib/validation";
@@ -50,7 +51,7 @@ export default function PortalProfilePage() {
         company_name: toNullable(v.company_name),
         address: toNullable(v.address),
         tax_id: toNullable(v.tax_id),
-      }),
+      } satisfies Body<"ProfileUpdateIn">),
     invalidate: ["portal"],
     success: "Profile saved. New invoices will use these details.",
     toastError: false,

@@ -72,6 +72,20 @@ const SPECS: Record<string, Record<string, BadgeSpec>> = {
     exhausted: { label: "Used up", tone: "warning", icon: Ban },
     inactive: { label: "Inactive", tone: "muted", icon: CircleDashed },
   },
+  mandate: {
+    pending: { label: "Awaiting bank", tone: "info", icon: Clock },
+    active: { label: "Active", tone: "success", icon: CheckCircle2 },
+    paused: { label: "Paused", tone: "warning", icon: PauseCircle },
+    cancelled: { label: "Revoked", tone: "muted", icon: Ban },
+    failed: { label: "Failed", tone: "danger", icon: AlertCircle },
+  },
+  attempt: {
+    created: { label: "Created", tone: "neutral", icon: CircleDashed },
+    processing: { label: "Processing", tone: "info", icon: Loader2 },
+    succeeded: { label: "Succeeded", tone: "success", icon: CheckCircle2 },
+    failed: { label: "Failed", tone: "danger", icon: AlertCircle },
+    cancelled: { label: "Cancelled", tone: "muted", icon: Ban },
+  },
   run: {
     running: { label: "Running", tone: "info", icon: Loader2 },
     completed: { label: "Completed", tone: "success", icon: CheckCircle2 },

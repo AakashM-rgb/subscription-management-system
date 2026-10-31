@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api/client";
+import type { Body } from "@/lib/api/contract";
 import { useApiMutation, usePaged } from "@/lib/api/hooks";
 import type { BillingRun } from "@/lib/api/types";
 import { formatDate, formatDateTime, formatNumber, humanize, pluralize, todayISO } from "@/lib/format";
@@ -41,7 +42,7 @@ export default function BillingRunsPage() {
   const [asOf, setAsOf] = useState(todayISO());
   const query = usePaged<BillingRun>("billing-runs", "/billing/runs", { page: list.page, page_size: list.pageSize });
   const run = useApiMutation<string, BillingRun>({
-    mutationFn: (date) => api.post<BillingRun>("/billing/runs", { as_of: date }),
+    mutationFn: (date) => api.post<BillingRun>("/billing/runs", { as_of: date } satisfies Body<"BillingRunIn">),
     invalidate: ["billing-runs", "invoices", "subscriptions", "reports"],
     success: (r) => `Billing run finished: ${pluralize(r.invoices_created, "invoice")} created${r.failures ? `, ${r.failures} failed` : ""}`,
     onSuccess: (r) => router.push(`/console/billing/${r.id}`),

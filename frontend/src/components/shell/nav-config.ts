@@ -61,6 +61,7 @@ export const CONSOLE_NAV: NavGroup[] = [
       { href: "/console/invoices", label: "Invoices", icon: FileText, permission: "invoice.act" },
       { href: "/console/receivables", label: "Outstanding & overdue", icon: FileClock, permission: "invoice.act" },
       { href: "/console/payments", label: "Payments", icon: Wallet, permission: "payment.record" },
+      { href: "/console/mandates", label: "Autopay mandates", icon: CreditCard, permission: "invoice.act" },
       { href: "/console/billing", label: "Billing runs", icon: CalendarClock, permission: "billing.read" },
     ],
   },

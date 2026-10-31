@@ -21,6 +21,7 @@ import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, Table
 import { ProductLineRow, type LinesForm } from "@/features/subscriptions/line-row";
 import { TotalsRows } from "@/features/subscriptions/subscription-view";
 import { api, ApiError, errorMessage } from "@/lib/api/client";
+import type { Body } from "@/lib/api/contract";
 import { useAllPages, useResource } from "@/lib/api/hooks";
 import {
   planOption,
@@ -191,7 +192,7 @@ export function SubscriptionForm({
   }, [previewBody]);
   const preview = useQuery({
     queryKey: ["pricing-preview", debouncedBody],
-    queryFn: () => api.post<PricingPreview>("/pricing/preview", debouncedBody),
+    queryFn: () => api.post<PricingPreview>("/pricing/preview", debouncedBody satisfies Body<"PricingPreviewIn"> | null),
     enabled: debouncedBody !== null,
     placeholderData: (previous) => previous,
     retry: false,
@@ -212,7 +213,7 @@ export function SubscriptionForm({
       payment_term_id: Number(values.payment_term_id),
       notes: values.notes.trim() || null,
       lines: toLines(values.lines),
-    };
+    } satisfies Body<"SubscriptionUpdateIn">;
     try {
       const saved = editing
         ? await api.patch<Subscription>(`/subscriptions/${subscription!.id}`, body)
@@ -220,7 +221,7 @@ export function SubscriptionForm({
             ...body,
             template_id: values.template_id ? Number(values.template_id) : null,
             discount_id: values.discount_id ? Number(values.discount_id) : null,
-          });
+          } satisfies Body<"SubscriptionCreateIn">);
       toast.success(editing ? "Changes saved" : `${saved.number} created as a draft`);
       router.push(`/console/subscriptions/${saved.id}`);
       router.refresh();

@@ -15,6 +15,7 @@ import { Can, useCan } from "@/components/session";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api/client";
+import type { Body } from "@/lib/api/contract";
 import { useApiMutation, usePaged } from "@/lib/api/hooks";
 import type { Tax } from "@/lib/api/types";
 import { formatRate } from "@/lib/format";
@@ -36,7 +37,9 @@ function TaxDialog({ open, onOpenChange, tax }: { open: boolean; onOpenChange: (
   }, [open, tax, form]);
   const mutation = useApiMutation<Values, Tax>({
     mutationFn: (v) =>
-      tax ? api.patch<Tax>(`/taxes/${tax.id}`, v) : api.post<Tax>("/taxes", { name: v.name, rate: v.rate }),
+      tax
+        ? api.patch<Tax>(`/taxes/${tax.id}`, { ...v } satisfies Body<"TaxUpdateIn">)
+        : api.post<Tax>("/taxes", { name: v.name, rate: v.rate } satisfies Body<"TaxCreateIn">),
     invalidate: ["taxes"],
     success: tax ? "Tax updated" : "Tax created",
     toastError: false,

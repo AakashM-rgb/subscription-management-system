@@ -25,6 +25,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { api } from "@/lib/api/client";
+import type { Body } from "@/lib/api/contract";
 import { useApiMutation, usePaged } from "@/lib/api/hooks";
 import { useProductOptions } from "@/lib/api/reference";
 import type { Discount } from "@/lib/api/types";
@@ -94,9 +95,9 @@ function DiscountFormDialog({ open, onOpenChange, discount }: { open: boolean; o
         valid_from: v.valid_from,
         valid_until: v.valid_until || null,
         usage_limit: toIntOrNull(v.usage_limit),
-      };
+      } satisfies Body<"DiscountCreateIn">;
       return discount
-        ? api.patch<Discount>(`/discounts/${discount.id}`, { ...body, is_active: v.is_active })
+        ? api.patch<Discount>(`/discounts/${discount.id}`, { ...body, is_active: v.is_active } satisfies Body<"DiscountUpdateIn">)
         : api.post<Discount>("/discounts", body);
     },
     invalidate: ["discounts"],

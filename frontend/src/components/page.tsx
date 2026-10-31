@@ -65,7 +65,9 @@ export function Section({
       {title ? (
         <CardHeader className="flex flex-row items-start justify-between gap-3 border-b px-5 py-4 [.border-b]:pb-4">
           <div className="space-y-1">
-            <CardTitle className="text-base font-semibold">{title}</CardTitle>
+            <CardTitle className="text-base font-semibold">
+              <h2 className="leading-snug">{title}</h2>
+            </CardTitle>
             {description ? <CardDescription>{description}</CardDescription> : null}
           </div>
           {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}

@@ -8,6 +8,7 @@ import { z } from "zod";
 import { FormDialog } from "@/components/form-dialog";
 import { applyServerErrors, MoneyField, SelectField, SwitchField, TextareaField, TextField } from "@/components/form-fields";
 import { api } from "@/lib/api/client";
+import type { Body } from "@/lib/api/contract";
 import { useApiMutation } from "@/lib/api/hooks";
 import { taxOption, useTaxOptions } from "@/lib/api/reference";
 import type { ProductDetail, ProductVariant } from "@/lib/api/types";
@@ -62,9 +63,9 @@ export function ProductFormDialog({
         cost_price: v.cost_price,
         tax_id: v.tax_id ? Number(v.tax_id) : null,
         notes: toNullable(v.notes),
-      };
+      } satisfies Body<"ProductCreateIn">;
       return product
-        ? api.patch<ProductDetail>(`/products/${product.id}`, { ...body, is_active: v.is_active })
+        ? api.patch<ProductDetail>(`/products/${product.id}`, { ...body, is_active: v.is_active } satisfies Body<"ProductUpdateIn">)
         : api.post<ProductDetail>("/products", body);
     },
     invalidate: ["products"],
@@ -159,12 +160,12 @@ export function VariantFormDialog({
   const mutation = useApiMutation<VariantValues, ProductVariant>({
     mutationFn: (v) =>
       variant
-        ? api.patch<ProductVariant>(`/products/${productId}/variants/${variant.id}`, v)
+        ? api.patch<ProductVariant>(`/products/${productId}/variants/${variant.id}`, { ...v } satisfies Body<"VariantUpdateIn">)
         : api.post<ProductVariant>(`/products/${productId}/variants`, {
             attribute: v.attribute,
             value: v.value,
             extra_price: v.extra_price,
-          }),
+          } satisfies Body<"VariantCreateIn">),
     invalidate: ["products"],
     success: variant ? "Variant updated" : "Variant added",
     toastError: false,

@@ -13,6 +13,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { invoiceColumns, paymentColumns, subscriptionColumns } from "@/features/columns";
+import { CustomerMandates } from "@/features/collections/mandates";
 import { CustomerFormDialog } from "@/features/customers/customer-form";
 import { api } from "@/lib/api/client";
 import { useApiMutation, usePaged, useResource } from "@/lib/api/hooks";
@@ -117,6 +118,7 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
               <TabsTrigger value="subscriptions">Subscriptions</TabsTrigger>
               <TabsTrigger value="invoices">Invoices</TabsTrigger>
               <TabsTrigger value="payments">Payments</TabsTrigger>
+              <TabsTrigger value="autopay">Autopay</TabsTrigger>
             </TabsList>
             <TabsContent value="subscriptions">
               <DataTable
@@ -158,6 +160,9 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
                 pagination={{ page: payPage, pageSize: 10, onPageChange: setPayPage }}
                 empty={<EmptyState compact title="No payments recorded" />}
               />
+            </TabsContent>
+            <TabsContent value="autopay">
+              <CustomerMandates customerId={c.id} compact />
             </TabsContent>
           </Tabs>
         </div>

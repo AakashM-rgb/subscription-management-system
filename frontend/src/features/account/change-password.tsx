@@ -12,6 +12,7 @@ import { Section } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import { FieldGroup } from "@/components/ui/field";
 import { api, ApiError } from "@/lib/api/client";
+import type { Body } from "@/lib/api/contract";
 import { passwordSchema } from "@/lib/validation";
 
 const schema = z
@@ -34,7 +35,7 @@ export function ChangePasswordSection() {
 
   async function onSubmit(v: Values) {
     try {
-      await api.post("/auth/password/change", { current_password: v.current_password, new_password: v.new_password });
+      await api.post("/auth/password/change", { current_password: v.current_password, new_password: v.new_password } satisfies Body<"ChangePasswordIn">);
       form.reset();
       toast.success("Password changed. Other devices have been signed out.");
     } catch (error) {

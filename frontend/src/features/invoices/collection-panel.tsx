@@ -7,20 +7,12 @@ import { useState } from "react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EmptyState, ErrorState, TableSkeleton } from "@/components/feedback";
 import { Section } from "@/components/page";
-import { Pill, StatusBadge } from "@/components/status-badge";
+import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api/client";
 import { useApiMutation } from "@/lib/api/hooks";
-import type { AttemptStatus, Invoice, PaymentAttempt } from "@/lib/api/types";
+import type { Invoice, PaymentAttempt } from "@/lib/api/types";
 import { formatDateTime, formatMoney, humanize } from "@/lib/format";
-
-const ATTEMPT_TONE: Record<AttemptStatus, "neutral" | "info" | "success" | "danger" | "muted"> = {
-  created: "neutral",
-  processing: "info",
-  succeeded: "success",
-  failed: "danger",
-  cancelled: "muted",
-};
 
 /** Automatic collection: payment attempts, failures and the next retry, for staff. */
 export function CollectionPanel({ invoice: inv }: { invoice: Invoice }) {
@@ -83,7 +75,7 @@ export function CollectionPanel({ invoice: inv }: { invoice: Invoice }) {
               </div>
               <div className="flex items-center gap-3">
                 <span className="tabular text-sm font-medium">{formatMoney(a.amount, inv.currency)}</span>
-                <Pill tone={ATTEMPT_TONE[a.status] ?? "neutral"} label={humanize(a.status)} />
+                <StatusBadge kind="attempt" value={a.status} />
               </div>
             </li>
           ))}

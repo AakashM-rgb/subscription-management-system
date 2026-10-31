@@ -63,6 +63,7 @@ test.describe("admin console", () => {
       ["/console/invoices", /^Invoices$/],
       ["/console/receivables", /^Outstanding & overdue$/],
       ["/console/payments", /^Payments$/],
+      ["/console/mandates", /^Autopay mandates$/],
       ["/console/billing", /^Billing runs$/],
       ["/console/products", /^Products$/],
       ["/console/plans", /^Plans$/],
