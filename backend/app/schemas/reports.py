@@ -1,6 +1,6 @@
 """Report schemas (Claude 2)."""
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 from app.schemas import ResponseModel
@@ -53,3 +53,17 @@ class OverdueInvoiceOut(ResponseModel):
     amount_paid: Decimal
     amount_due: Decimal
     days_overdue: int
+
+
+class UnappliedPaymentOut(ResponseModel):
+    """Money a provider collected that could not be applied to an invoice; needs a refund or a
+    manual decision."""
+
+    audit_event_id: int
+    recorded_at: datetime
+    provider: str | None
+    provider_payment_id: str | None
+    amount: Decimal | None
+    invoice_id: int | None
+    attempt_id: int | None
+    reason: str | None

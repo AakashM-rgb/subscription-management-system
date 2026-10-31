@@ -12,6 +12,7 @@ from app.schemas.reports import (
     RevenuePointOut,
     StatusCountOut,
     SummaryReportOut,
+    UnappliedPaymentOut,
 )
 from app.services import reports
 from app.services.common import business_today
@@ -104,4 +105,12 @@ def overdue_invoices(
         limit=page.page_size,
         offset=page.offset,
     )
+    return {"items": items, "total": total, "page": page.page, "page_size": page.page_size}
+
+
+@router.get("/unapplied-payments", response_model=PageOut[UnappliedPaymentOut])
+def unapplied_payments(_: StaffUser, db: DB, page: Page) -> dict:
+    """Money taken by a payment provider that could not be applied (invoice already paid,
+    cancelled, or overpaid). Each entry needs a refund or a manual decision."""
+    total, items = reports.unapplied_payments(db, limit=page.page_size, offset=page.offset)
     return {"items": items, "total": total, "page": page.page, "page_size": page.page_size}

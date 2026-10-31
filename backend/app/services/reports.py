@@ -13,7 +13,7 @@ from sqlalchemy import Date, cast, func, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.models import Customer, Invoice, Payment, Subscription
+from app.models import AuditEvent, Customer, Invoice, Payment, Subscription
 from app.money import money
 from app.services.common import business_today
 from app.services.invoices import days_overdue
@@ -199,4 +199,29 @@ def overdue_invoices(
         }
         for inv, name in rows
     ]
+    return total, items
+
+
+def unapplied_payments(db: Session, *, limit: int, offset: int) -> tuple[int, list[dict]]:
+    """Provider payments written to the audit log as "payment.unapplied", newest first."""
+    cond = AuditEvent.action == "payment.unapplied"
+    total = db.scalar(select(func.count()).select_from(AuditEvent).where(cond)) or 0
+    rows = db.scalars(
+        select(AuditEvent).where(cond).order_by(AuditEvent.id.desc()).limit(limit).offset(offset)
+    ).all()
+    items = []
+    for ev in rows:
+        d = ev.data or {}
+        items.append(
+            {
+                "audit_event_id": ev.id,
+                "recorded_at": ev.created_at,
+                "provider": d.get("provider"),
+                "provider_payment_id": d.get("provider_payment_id"),
+                "amount": d.get("amount") if d.get("amount") not in (None, "None") else None,
+                "invoice_id": d.get("invoice_id"),
+                "attempt_id": d.get("attempt_id"),
+                "reason": d.get("reason"),
+            }
+        )
     return total, items

@@ -337,6 +337,28 @@ def test_unapplicable_money_is_audited_not_lost(db: Session, fake) -> None:
     assert "exceeds" in unapplied.data["reason"]
 
 
+def test_staff_can_list_unapplied_money(client: TestClient, db: Session, fake) -> None:
+    invoice, _ = autopay_invoice(db)
+    attempt = collections.collect_invoice(db, invoice.id, NOW)
+    collections.handle_event(
+        db,
+        event(
+            db,
+            "payment_succeeded",
+            provider_reference=attempt.provider_reference,
+            provider_payment_id="pay_refund_me",
+            amount="9999.00",
+        ),
+    )
+    login(client, make_user(db, "staff").email)
+    rows = client.get(f"{API}/reports/unapplied-payments").json()["items"]
+    row = next(r for r in rows if r["provider_payment_id"] == "pay_refund_me")
+    assert (row["amount"], row["invoice_id"], row["provider"]) == ("9999.00", invoice.id, "fakepay")
+    f.portal_customer(db, "nosy@portal.example.com")
+    login(client, "nosy@portal.example.com")
+    assert client.get(f"{API}/reports/unapplied-payments").status_code == 403
+
+
 def test_orphan_provider_payment_is_matched_by_metadata(db: Session, fake) -> None:
     invoice, _ = autopay_invoice(db)
     fake.order_metadata["order_lost"] = {"invoice_id": str(invoice.id)}
