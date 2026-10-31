@@ -528,3 +528,58 @@ def test_signed_webhook_end_to_end(client: TestClient, db: Session, fake) -> Non
         f"{API}/webhooks/payments/fakepay", content=raw, headers={"x-fake-signature": "0" * 64}
     )
     assert tampered.status_code == 400
+
+
+def test_confirm_is_idempotent_after_webhook(client: TestClient, db: Session, fake) -> None:
+    cust = f.portal_customer(db, "race@portal.example.com")
+    cust.phone = "+919847000003"
+    login(client, "race@portal.example.com")
+    started = client.post(f"{API}/portal/payment-methods", json={"method_type": "card"}).json()
+    mandate = db.get(PaymentMandate, started["mandate"]["id"])
+    # The provider's webhook wins the race and activates the mandate first.
+    collections.apply_mandate_update(
+        db, mandate, MandateUpdate(status="active", provider_mandate_id="tok_race")
+    )
+    res = client.post(
+        f"{API}/portal/payment-methods/{mandate.id}/confirm",
+        json={"provider_response": {"signature": "anything"}},
+    )
+    assert res.status_code == 200 and res.json()["status"] == "active"
+
+
+def test_abandoned_authorisation_expires(db: Session, fake) -> None:
+    cust = f.customer(db)
+    old = PaymentMandate(
+        customer_id=cust.id,
+        provider="fakepay",
+        provider_customer_id="c",
+        provider_mandate_id="auth_old",
+        status="pending",
+    )
+    fresh = PaymentMandate(
+        customer_id=cust.id,
+        provider="fakepay",
+        provider_customer_id="c",
+        provider_mandate_id="auth_fresh",
+        status="pending",
+    )
+    db.add_all([old, fresh])
+    db.flush()
+    db.execute(
+        PaymentMandate.__table__.update()
+        .where(PaymentMandate.id == old.id)
+        .values(created_at=NOW - timedelta(days=2), updated_at=NOW - timedelta(days=2))
+    )
+    db.refresh(old)
+    collections.reconcile_pending(db, NOW + timedelta(hours=1))
+    assert old.status == "failed"
+    assert fresh.status == "pending"
+    assert fresh.updated_at > NOW  # checked and rotated, not re-polled first next time
+
+
+def test_slow_charges_rotate_instead_of_blocking(db: Session, fake) -> None:
+    invoice, _ = autopay_invoice(db)
+    attempt = collections.collect_invoice(db, invoice.id, NOW)
+    later = NOW + timedelta(hours=1)
+    assert collections.reconcile_pending(db, later) == 0  # provider still processing
+    assert attempt.status == "processing" and attempt.updated_at == later

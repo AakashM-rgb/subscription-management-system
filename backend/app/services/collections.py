@@ -52,6 +52,9 @@ from app.services.periods import business_today
 log = logging.getLogger(__name__)
 
 BATCH_SIZE = 25
+# Providers expire unfinished checkouts (Razorpay: the authorisation order must be completed
+# the same day), so a mandate still unauthorised after this long is abandoned.
+AUTHORIZATION_TIMEOUT = timedelta(hours=24)
 INFLIGHT = ("created", "processing")
 LIVE_SUBSCRIPTIONS = ("confirmed", "active")
 MANDATE_TRANSITIONS = {
@@ -246,9 +249,10 @@ def complete_mandate(
     db: Session, *, mandate: PaymentMandate, client_payload: dict, actor: User | None
 ) -> PaymentMandate:
     """The customer finished the provider checkout; verify it server-side and record the
-    resulting mandate. Webhooks would get there too; this makes the portal immediate."""
+    resulting mandate. Webhooks would get there too; this makes the portal immediate.
+    Idempotent: if a webhook already settled the mandate, its current state is returned."""
     if mandate.status != "pending":
-        raise AppError(409, "INVALID_STATE", f"This payment method is already {mandate.status}")
+        return mandate
     adapter = get_adapter(mandate.provider)
     update = adapter.complete_authorization(
         reference=mandate.provider_mandate_id, client_payload=client_payload
@@ -561,7 +565,7 @@ def reconcile_pending(db: Session, now: datetime) -> int:
     attempts = db.scalars(
         select(PaymentAttempt)
         .where(PaymentAttempt.status.in_(INFLIGHT), PaymentAttempt.updated_at < stale)
-        .order_by(PaymentAttempt.id)
+        .order_by(PaymentAttempt.updated_at, PaymentAttempt.id)
         .limit(BATCH_SIZE)
         .with_for_update(skip_locked=True)
         .execution_options(populate_existing=True)
@@ -577,7 +581,7 @@ def reconcile_pending(db: Session, now: datetime) -> int:
     mandates = db.scalars(
         select(PaymentMandate)
         .where(PaymentMandate.status == "pending", PaymentMandate.updated_at < stale)
-        .order_by(PaymentMandate.id)
+        .order_by(PaymentMandate.updated_at, PaymentMandate.id)
         .limit(BATCH_SIZE)
         .with_for_update(skip_locked=True)
     ).all()
@@ -588,10 +592,16 @@ def reconcile_pending(db: Session, now: datetime) -> int:
                     provider_customer_id=mandate.provider_customer_id,
                     provider_mandate_id=mandate.provider_mandate_id,
                 )
+                if update is None and mandate.created_at < now - AUTHORIZATION_TIMEOUT:
+                    update = MandateUpdate(
+                        status="failed", failure_message="Authorisation was not completed"
+                    )
                 if update is not None and apply_mandate_update(
                     db, mandate, update, actor_type="provider"
                 ):
                     handled += 1
+                else:
+                    mandate.updated_at = now  # checked: rotate to the back of the queue
         except ProviderError as exc:
             log.warning("reconcile mandate %s: %s", mandate.id, exc.message)
     return handled
@@ -608,7 +618,12 @@ def _reconcile_attempt(db: Session, attempt: PaymentAttempt, now: datetime) -> i
         )
     else:
         result = get_adapter(attempt.provider).fetch_charge(attempt.provider_reference)
-    return 0 if apply_charge_result(db, attempt, result, now) == "ignored" else 1
+    if apply_charge_result(db, attempt, result, now) == "ignored":
+        # Still pending at the provider (UPI can take 24-36h): rotate to the back of the queue
+        # so a backlog of slow charges cannot starve newer ones.
+        attempt.updated_at = now
+        return 0
+    return 1
 
 
 # ----------------------------------------------------------------------------- webhooks
