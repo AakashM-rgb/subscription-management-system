@@ -1,18 +1,12 @@
-from datetime import date, datetime
-from zoneinfo import ZoneInfo
-
 from pydantic import BaseModel
 from sqlalchemy import inspect
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.config import get_settings
 from app.errors import AppError, not_found
+from app.services.periods import business_today
 
-
-def business_today() -> date:
-    """'Today' for due dates and reports is the business's calendar day, not the server's."""
-    return datetime.now(ZoneInfo(get_settings().business_timezone)).date()
+__all__ = ["apply_changes", "business_today", "commit_or_conflict", "get_or_404"]
 
 
 def get_or_404[T](db: Session, model: type[T], entity_id: int, entity: str) -> T:

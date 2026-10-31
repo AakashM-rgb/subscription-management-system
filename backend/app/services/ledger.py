@@ -13,7 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.errors import AppError, not_found
-from app.models import PAYMENT_METHODS, Invoice, Payment, User
+from app.models import PAYMENT_METHODS, Invoice, Payment, PaymentAttempt, User
 from app.money import ZERO, money
 from app.services import audit
 from app.services.common import business_today
@@ -29,6 +29,18 @@ def _lock_invoice(db: Session, invoice_id: int) -> Invoice:
     if invoice is None:
         raise not_found("Invoice")
     return invoice
+
+
+def _collection_in_flight(db: Session, invoice_id: int) -> bool:
+    return (
+        db.scalar(
+            select(PaymentAttempt.id).where(
+                PaymentAttempt.invoice_id == invoice_id,
+                PaymentAttempt.status.in_(("created", "processing")),
+            )
+        )
+        is not None
+    )
 
 
 def _next_payment_number(db: Session) -> str:
@@ -118,6 +130,13 @@ def record_payment(
         raise AppError(409, "INVALID_STATE", "Payments cannot be recorded on a cancelled invoice")
     if invoice.status == "paid":
         raise AppError(409, "INVALID_STATE", "This invoice is already fully paid")
+    if payment_attempt_id is None and _collection_in_flight(db, invoice.id):
+        # Otherwise a manual payment plus the pending provider charge could exceed the total.
+        raise AppError(
+            409,
+            "INVALID_STATE",
+            "An automatic collection for this invoice is in progress; wait for its result",
+        )
     amount_due = invoice.amount_total - invoice.amount_paid
     if amount > amount_due:
         raise AppError(

@@ -53,3 +53,65 @@ class PortalPaymentOut(ResponseModel):
     amount: Decimal
     payment_date: date
     status: Literal["posted", "voided"]
+
+
+# ----------------------------------------------------------------------------- collections
+
+MandateStatus = Literal["pending", "active", "paused", "cancelled", "failed"]
+
+
+class MandateOut(ResponseModel):
+    id: int
+    customer_id: int
+    provider: str
+    status: MandateStatus
+    method_type: str | None
+    display_hint: str | None
+    max_amount: Decimal | None
+    authorized_at: datetime | None
+    cancelled_at: datetime | None
+    created_at: datetime
+
+
+class PortalMandateOut(ResponseModel):
+    id: int
+    provider: str
+    status: MandateStatus
+    method_type: str | None
+    display_hint: str | None
+    max_amount: Decimal | None
+    authorized_at: datetime | None
+    created_at: datetime
+
+
+class MandateStartIn(RequestModel):
+    method_type: Literal["card", "upi"]
+    max_amount: PositiveMoney | None = None
+
+
+class MandateStartOut(ResponseModel):
+    mandate: PortalMandateOut
+    checkout: dict
+
+
+class MandateConfirmIn(RequestModel):
+    """Exactly what the provider's checkout handed back to the browser (e.g. Razorpay's
+    razorpay_payment_id / razorpay_order_id / razorpay_signature). Verified server-side."""
+
+    provider_response: dict[str, str] = Field(max_length=10)
+
+
+class PaymentAttemptOut(ResponseModel):
+    id: int
+    invoice_id: int
+    mandate_id: int
+    provider: str
+    provider_reference: str | None
+    amount: Decimal
+    status: Literal["created", "processing", "succeeded", "failed", "cancelled"]
+    attempt_number: int
+    failure_code: str | None
+    failure_message: str | None
+    next_retry_at: datetime | None
+    created_at: datetime
+    updated_at: datetime

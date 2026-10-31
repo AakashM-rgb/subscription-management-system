@@ -16,6 +16,7 @@ from app.config import get_settings
 from app.models import Customer, Invoice, Payment, Subscription
 from app.money import money
 from app.services.common import business_today
+from app.services.invoices import days_overdue
 
 BILLED_STATUSES = ("confirmed", "paid")
 
@@ -194,7 +195,7 @@ def overdue_invoices(
             "amount_total": inv.amount_total,
             "amount_paid": inv.amount_paid,
             "amount_due": inv.amount_due,
-            "days_overdue": (today - inv.due_date).days,
+            "days_overdue": days_overdue(inv, today),
         }
         for inv, name in rows
     ]
