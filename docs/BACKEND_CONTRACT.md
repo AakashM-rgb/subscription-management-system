@@ -15,6 +15,7 @@ show 🔜 features as "not available yet".
   `UNAUTHENTICATED` 401, `INVALID_CREDENTIALS` 401, `FORBIDDEN` 403, `NOT_FOUND` 404,
   `INVALID_STATE` 409, `DUPLICATE` 409, `BILLING_RUN_IN_PROGRESS` 409, `AMOUNT_EXCEEDS_DUE` 422,
   `RATE_LIMITED` 429, `PROVIDER_NOT_CONFIGURED` 503.
+- Portal responses use the same shapes as staff responses (incl. `available_actions`).
 - Portal endpoints never accept a `customer_id`; the customer comes from the session. Another
   customer's record → 404.
 - Subscription and invoice responses carry `available_actions: string[]`, computed server-side for
@@ -58,16 +59,16 @@ Password rule: more than 8 chars, an uppercase letter, a lowercase letter and a 
 | Status | Method & path | Role | Notes |
 |---|---|---|---|
 | 🔜 | GET/POST `/quotation-templates`, GET/PATCH `/quotation-templates/{id}` | A,S | plan, plan_quantity, term_periods, validity_days, lines |
-| 🔜 | POST `/pricing/preview` | A,S | `{plan_id, plan_quantity, lines[], discount_id?}` → server totals |
-| 🔜 | GET `/subscriptions?status&customer_id&plan_id&q&expired` | A,S | Page[`SubscriptionListItem`] |
-| 🔜 | POST `/subscriptions` | A,S | `{customer_id, plan_id, plan_quantity, start_date, term_periods, payment_term_id, template_id?, discount_id?, notes?, lines:[{product_id, variant_id?, quantity, unit_price?}]}` → Draft |
-| 🔜 | GET `/subscriptions/{id}` | A,S | `Subscription` (below) |
-| 🔜 | PATCH `/subscriptions/{id}` | A,S | Draft/Quotation only; `lines` replaces all lines |
-| 🔜 | POST `/subscriptions/{id}/send-quotation \| confirm \| pause \| resume \| renew \| close` | A,S | close: `{reason?}` |
-| 🔜 | PUT `/subscriptions/{id}/discount` | A,S | `{discount_id: int \| null}` (one per subscription) |
-| 🔜 | POST `/subscriptions/{id}/bill-now` | A,S | bills all due periods; idempotent |
-| 🔜 | GET `/subscriptions/{id}/events` | A,S | audit history |
-| 🔜 | GET `/subscriptions/{id}/invoices` | A,S | |
+| ✅ | POST `/pricing/preview` | A,S | `{plan_id, plan_quantity, lines[], discount_id?}` → server totals |
+| ✅ | GET `/subscriptions?status&customer_id&plan_id&q&expired` | A,S | Page[`SubscriptionListItem`] |
+| ✅ | POST `/subscriptions` | A,S | `{customer_id, plan_id, plan_quantity, start_date, term_periods, payment_term_id, template_id?, discount_id?, notes?, lines:[{product_id, variant_id?, quantity, unit_price?}]}` → Draft |
+| ✅ | GET `/subscriptions/{id}` | A,S | `Subscription` (below) |
+| ✅ | PATCH `/subscriptions/{id}` | A,S | Draft/Quotation only; `lines` replaces all lines |
+| ✅ | POST `/subscriptions/{id}/send-quotation \| confirm \| pause \| resume \| renew \| close` | A,S | close: `{reason?}` |
+| ✅ | PUT `/subscriptions/{id}/discount` | A,S | `{discount_id: int \| null}` (one per subscription) |
+| ✅ | POST `/subscriptions/{id}/bill-now` | A,S | bills all due periods; idempotent |
+| ✅ | GET `/subscriptions/{id}/events` | A,S | Page[`{id, action, actor_type, actor_name, data, created_at}`], newest first |
+| ✅ | GET `/subscriptions/{id}/invoices` | A,S | |
 
 `Subscription`: `{id, number, status, customer{id,name,email}, plan{id,name,price,billing_period,
 min_quantity,auto_close,closable,pausable,renewable}, payment_term{id,name,due_days},
@@ -87,14 +88,14 @@ stays Active with `is_expired=true` and is not billed until renewed or closed.
 ### Invoices & billing — Claude 1
 | Status | Method & path | Role | Notes |
 |---|---|---|---|
-| 🔜 | GET `/invoices?status&customer_id&subscription_id&overdue&date_from&date_to` | A,S | |
-| 🔜 | GET `/invoices/{id}` | A,S | lines, payments, attempts summary |
-| 🔜 | POST `/invoices/{id}/confirm` | A,S | assigns number and due date |
-| 🔜 | POST `/invoices/bulk-confirm` | A,S | `{invoice_ids}` → `{confirmed[], errors[]}` |
-| 🔜 | POST `/invoices/{id}/cancel` | A,S | `{reason, reissue: bool}`; only if nothing paid |
-| 🔜 | POST `/invoices/{id}/send` | A,S | queues email |
-| 🔜 | POST `/billing/runs` | A | `{as_of?}` → `BillingRun`; 409 if one is running |
-| 🔜 | GET `/billing/runs`, GET `/billing/runs/{id}` | A,S | execution history + per-subscription items |
+| ✅ | GET `/invoices?status&customer_id&subscription_id&overdue&date_from&date_to&q&sort` | A,S | sort: created_at, number, invoice_date, due_date, amount_total, amount_due |
+| ✅ | GET `/invoices/{id}` | A,S | lines, payments, attempts summary |
+| ✅ | POST `/invoices/{id}/confirm` | A,S | assigns number and due date |
+| ✅ | POST `/invoices/bulk-confirm` | A,S | `{invoice_ids}` → `{confirmed[], errors[]}` |
+| ✅ | POST `/invoices/{id}/cancel` | A,S | `{reason, reissue: bool}`; only if nothing paid |
+| ✅ | POST `/invoices/{id}/send` | A,S | queues email |
+| ✅ | POST `/billing/runs` | A | `{as_of?}` → `BillingRun`; 409 if one is running |
+| ✅ | GET `/billing/runs`, GET `/billing/runs/{id}` | A,S | execution history + per-subscription items |
 
 `Invoice`: `{id, number, status: draft|confirmed|paid|cancelled, payment_state:
 unpaid|partially_paid|paid, is_overdue, days_overdue, collection_status:
@@ -122,7 +123,9 @@ payment: money exists only as a `posted` Payment.
 |---|---|---|
 | 🔜 | GET `/reports/summary?date_from&date_to&plan_id&customer_id` | A,S |
 | 🔜 | GET `/reports/overdue-invoices` | A,S |
-| 🔜 | GET `/reports/revenue?date_from&date_to&granularity=month` | A,S |
+| 🔜 | GET `/reports/revenue?date_from&date_to&granularity=day\|month` | A,S |
+| 🔜 | GET `/reports/payments-by-method?date_from&date_to` | A,S |
+| 🔜 | GET `/reports/subscriptions-by-status` | A,S |
 
 ### Portal (customer, session-scoped)
 | Status | Method & path | Owner |

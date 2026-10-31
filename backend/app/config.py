@@ -21,6 +21,19 @@ class Settings(BaseSettings):
     currency: str = "INR"
     company_name: str = "Brightloop Software"
     quotation_validity_days: int = 30
+    # Public URL of the web app, used in emailed links (reset, invite, invoice, quotation).
+    app_base_url: str = "http://localhost:3000"
+
+    email_backend: str = "console"  # console | smtp
+    smtp_host: str = "localhost"
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = "Brightloop Billing <billing@brightloop.example.com>"
+    smtp_starttls: bool = True
+
+    billing_hour: int = 0  # scheduled daily run (business timezone), plus hourly catch-up
+    billing_minute: int = 5
 
     @property
     def allowed_origin_list(self) -> list[str]:
