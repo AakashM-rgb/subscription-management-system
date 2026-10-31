@@ -1,4 +1,4 @@
-"""All MVP tables. Schema changes are made only by the migration owner (Aakash)."""
+"""All tables. Schema changes are made only by the migration owner (Claude 1 / Aakash)."""
 
 from datetime import date, datetime
 from decimal import Decimal
@@ -24,6 +24,7 @@ from sqlalchemy import (
     func,
     text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base, TimestampMixin
@@ -264,6 +265,9 @@ class Subscription(TimestampMixin, Base):
     amount_tax: Mapped[Decimal] = mapped_column(Money, server_default=text("0"))
     amount_total: Mapped[Decimal] = mapped_column(Money, server_default=text("0"))
     notes: Mapped[str | None] = mapped_column(Text)
+    template_id: Mapped[int | None] = mapped_column(ForeignKey("quotation_templates.id"))
+    auto_collect: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    mandate_id: Mapped[int | None] = mapped_column(ForeignKey("payment_mandates.id"))
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
 
     customer: Mapped[Customer] = relationship()
@@ -392,6 +396,9 @@ class Invoice(TimestampMixin, Base):
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     cancel_reason: Mapped[str | None] = mapped_column(Text)
     replaces_invoice_id: Mapped[int | None] = mapped_column(ForeignKey("invoices.id"))
+    billing_run_id: Mapped[int | None] = mapped_column(ForeignKey("billing_runs.id"))
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sent_count: Mapped[int] = mapped_column(Integer, server_default=text("0"))
 
     subscription: Mapped[Subscription] = relationship()
     customer: Mapped[Customer] = relationship()
@@ -442,6 +449,7 @@ class Payment(Base):
             name="fk_payments_invoice_customer",
         ),
         Index("ix_payments_customer_date", "customer_id", "payment_date"),
+        UniqueConstraint("provider", "provider_payment_id", name="uq_payments_provider_ref"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
@@ -455,9 +463,291 @@ class Payment(Base):
     status: Mapped[str] = mapped_column(String(8), server_default=text("'posted'"))
     idempotency_key: Mapped[str | None] = mapped_column(Uuid(as_uuid=False), unique=True)
     recorded_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    provider: Mapped[str | None] = mapped_column(String(24))
+    provider_payment_id: Mapped[str | None] = mapped_column(String(64))
+    payment_attempt_id: Mapped[int | None] = mapped_column(ForeignKey("payment_attempts.id"))
     voided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     voided_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     void_reason: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     invoice: Mapped[Invoice] = relationship(back_populates="payments", overlaps="payments")
+
+
+# --------------------------------------------------------------------------- auth support
+
+
+class AuthToken(Base):
+    """Single-use password-reset / invitation tokens. Only a SHA-256 hash is stored."""
+
+    __tablename__ = "auth_tokens"
+    __table_args__ = (CheckConstraint("purpose IN ('reset', 'invite')", name="purpose"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    purpose: Mapped[str] = mapped_column(String(8))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class LoginAttempt(Base):
+    """Sign-in attempts, used for brute-force throttling across worker processes."""
+
+    __tablename__ = "login_attempts"
+    __table_args__ = (Index("ix_login_attempts_email_time", "email", "created_at"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    email: Mapped[str] = mapped_column(String(254))
+    ip_address: Mapped[str | None] = mapped_column(String(45))
+    succeeded: Mapped[bool] = mapped_column(Boolean)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class EmailOutbox(Base):
+    """Transactional outbox: rows are written in the same transaction as the business change."""
+
+    __tablename__ = "email_outbox"
+    __table_args__ = (
+        CheckConstraint("status IN ('pending', 'sending', 'sent', 'dead')", name="status"),
+        Index(
+            "ix_email_outbox_pending",
+            "next_attempt_at",
+            postgresql_where=text("status = 'pending'"),
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    idempotency_key: Mapped[str] = mapped_column(String(120), unique=True)
+    to_email: Mapped[str] = mapped_column(String(254))
+    subject: Mapped[str] = mapped_column(String(200))
+    template: Mapped[str] = mapped_column(String(60))
+    context: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
+    status: Mapped[str] = mapped_column(String(8), server_default=text("'pending'"))
+    attempts: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    next_attempt_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    last_error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+# --------------------------------------------------------------------------- quotations
+
+
+class QuotationTemplate(TimestampMixin, Base):
+    __tablename__ = "quotation_templates"
+    __table_args__ = (
+        CheckConstraint("validity_days > 0", name="validity_positive"),
+        CheckConstraint("plan_quantity >= 1", name="plan_quantity_positive"),
+        CheckConstraint("term_periods IS NULL OR term_periods > 0", name="term_positive"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    name: Mapped[str] = mapped_column(String(120))
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"))
+    plan_quantity: Mapped[int] = mapped_column(Integer, server_default=text("1"))
+    payment_term_id: Mapped[int | None] = mapped_column(ForeignKey("payment_terms.id"))
+    term_periods: Mapped[int | None] = mapped_column(Integer)
+    validity_days: Mapped[int] = mapped_column(Integer)
+    notes: Mapped[str | None] = mapped_column(Text)
+    is_active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
+
+    plan: Mapped[Plan] = relationship()
+    lines: Mapped[list[QuotationTemplateLine]] = relationship(
+        back_populates="template",
+        cascade="all, delete-orphan",
+        order_by="QuotationTemplateLine.sequence",
+    )
+
+
+class QuotationTemplateLine(Base):
+    __tablename__ = "quotation_template_lines"
+    __table_args__ = (
+        CheckConstraint("quantity > 0", name="quantity_positive"),
+        CheckConstraint("unit_price IS NULL OR unit_price >= 0", name="unit_price"),
+        ForeignKeyConstraint(
+            ["variant_id", "product_id"],
+            ["product_variants.id", "product_variants.product_id"],
+            name="fk_quotation_template_lines_variant_product",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    template_id: Mapped[int] = mapped_column(
+        ForeignKey("quotation_templates.id", ondelete="CASCADE"), index=True
+    )
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
+    variant_id: Mapped[int | None] = mapped_column(BigInteger)
+    quantity: Mapped[int] = mapped_column(Integer)
+    unit_price: Mapped[Decimal | None] = mapped_column(Money)
+    sequence: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+
+    template: Mapped[QuotationTemplate] = relationship(back_populates="lines")
+
+
+# --------------------------------------------------------------------------- billing engine
+
+
+class BillingRun(Base):
+    """Execution history of every billing cycle (scheduled, manual or single-subscription)."""
+
+    __tablename__ = "billing_runs"
+    __table_args__ = (
+        CheckConstraint("trigger IN ('scheduled', 'manual', 'subscription')", name="trigger"),
+        CheckConstraint("status IN ('running', 'succeeded', 'partial', 'failed')", name="status"),
+        Index("ix_billing_runs_started", "started_at"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    trigger: Mapped[str] = mapped_column(String(12))
+    as_of: Mapped[date] = mapped_column(Date)
+    status: Mapped[str] = mapped_column(String(10), server_default=text("'running'"))
+    triggered_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    subscriptions_due: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    invoices_created: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    failures: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    error: Mapped[str | None] = mapped_column(Text)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    items: Mapped[list[BillingRunItem]] = relationship(
+        back_populates="run", order_by="BillingRunItem.id"
+    )
+
+
+class BillingRunItem(Base):
+    """Per-subscription outcome of a billing run; failed subscriptions stay due and are retried."""
+
+    __tablename__ = "billing_run_items"
+    __table_args__ = (CheckConstraint("status IN ('billed', 'failed')", name="status"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    billing_run_id: Mapped[int] = mapped_column(
+        ForeignKey("billing_runs.id", ondelete="CASCADE"), index=True
+    )
+    subscription_id: Mapped[int] = mapped_column(ForeignKey("subscriptions.id"), index=True)
+    status: Mapped[str] = mapped_column(String(8))
+    invoices_created: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    run: Mapped[BillingRun] = relationship(back_populates="items")
+
+
+# --------------------------------------------------------------------------- audit
+
+
+class AuditEvent(Base):
+    """Append-only history of business and financial operations (a DB trigger blocks edits)."""
+
+    __tablename__ = "audit_events"
+    __table_args__ = (
+        CheckConstraint("actor_type IN ('user', 'system', 'provider')", name="actor_type"),
+        Index("ix_audit_events_entity", "entity_type", "entity_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    actor_type: Mapped[str] = mapped_column(String(8))
+    actor_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    action: Mapped[str] = mapped_column(String(48))
+    entity_type: Mapped[str] = mapped_column(String(32))
+    entity_id: Mapped[int] = mapped_column(BigInteger)
+    data: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+# --------------------------------------------------------------------------- payment collection
+
+
+class PaymentMandate(TimestampMixin, Base):
+    """A customer-authorised recurring payment instruction held by a payment provider.
+
+    Only provider references and a display hint (e.g. "Visa **** 4242") are stored.
+    Raw card or bank credentials never touch this system.
+    """
+
+    __tablename__ = "payment_mandates"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'active', 'paused', 'cancelled', 'failed')", name="status"
+        ),
+        CheckConstraint("max_amount IS NULL OR max_amount > 0", name="max_amount"),
+        UniqueConstraint("provider", "provider_mandate_id", name="uq_mandates_provider_ref"),
+        Index("ix_payment_mandates_customer_status", "customer_id", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
+    provider: Mapped[str] = mapped_column(String(24))
+    provider_customer_id: Mapped[str | None] = mapped_column(String(64))
+    provider_mandate_id: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(10), server_default=text("'pending'"))
+    method_type: Mapped[str | None] = mapped_column(String(16))
+    display_hint: Mapped[str | None] = mapped_column(String(64))
+    max_amount: Mapped[Decimal | None] = mapped_column(Money)
+    authorized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class PaymentAttempt(TimestampMixin, Base):
+    """One request to a provider to collect an invoice. Money counts only once a Payment exists."""
+
+    __tablename__ = "payment_attempts"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('created', 'processing', 'succeeded', 'failed', 'cancelled')",
+            name="status",
+        ),
+        CheckConstraint("amount > 0", name="amount_positive"),
+        CheckConstraint("attempt_number >= 1", name="attempt_number"),
+        UniqueConstraint("provider", "provider_reference", name="uq_attempts_provider_ref"),
+        Index(
+            "ux_payment_attempts_inflight",
+            "invoice_id",
+            unique=True,
+            postgresql_where=text("status IN ('created', 'processing')"),
+        ),
+        Index(
+            "ix_payment_attempts_retry",
+            "next_retry_at",
+            postgresql_where=text("status = 'failed' AND next_retry_at IS NOT NULL"),
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    invoice_id: Mapped[int] = mapped_column(ForeignKey("invoices.id"), index=True)
+    mandate_id: Mapped[int] = mapped_column(ForeignKey("payment_mandates.id"))
+    provider: Mapped[str] = mapped_column(String(24))
+    provider_reference: Mapped[str | None] = mapped_column(String(64))
+    idempotency_key: Mapped[str] = mapped_column(String(80), unique=True)
+    amount: Mapped[Decimal] = mapped_column(Money)
+    status: Mapped[str] = mapped_column(String(10), server_default=text("'created'"))
+    attempt_number: Mapped[int] = mapped_column(Integer, server_default=text("1"))
+    failure_code: Mapped[str | None] = mapped_column(String(64))
+    failure_message: Mapped[str | None] = mapped_column(Text)
+    next_retry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ProviderEvent(Base):
+    """Webhook inbox: each verified provider event is stored once, then processed idempotently."""
+
+    __tablename__ = "provider_events"
+    __table_args__ = (
+        CheckConstraint("status IN ('received', 'processed', 'failed', 'ignored')", name="status"),
+        UniqueConstraint("provider", "event_id", name="uq_provider_events_event"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    provider: Mapped[str] = mapped_column(String(24))
+    event_id: Mapped[str] = mapped_column(String(100))
+    event_type: Mapped[str] = mapped_column(String(64))
+    payload: Mapped[dict] = mapped_column(JSONB)
+    status: Mapped[str] = mapped_column(String(10), server_default=text("'received'"))
+    processing_error: Mapped[str | None] = mapped_column(Text)
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
