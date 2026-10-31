@@ -424,3 +424,12 @@ def test_catch_up_billing_judges_discount_validity_per_period(db, catalog):
     discounts = [i.amount_discount for i in invoices_of(db, sub)]
     assert discounts == [D("999.00"), D("999.00"), D("0.00"), D("0.00")]  # Jan, Feb valid
     assert {i.invoice_date for i in invoices_of(db, sub)} == {date(2026, 4, 1)}  # issue date
+
+
+def test_long_close_reason_is_accepted(client, catalog, staff):
+    """Found by Claude 3's write e2e: reasons up to 200 chars used to crash with a 500."""
+    sub = client.post(f"{API}/subscriptions", json=payload(catalog)).json()
+    reason = "Moved to the yearly enterprise plan after a pricing review with finance"
+    res = client.post(f"{API}/subscriptions/{sub['id']}/close", json={"reason": reason})
+    assert res.status_code == 200, res.text
+    assert res.json()["close_reason"] == reason
