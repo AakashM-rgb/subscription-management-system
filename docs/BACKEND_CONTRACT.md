@@ -2,7 +2,8 @@
 
 Source of truth for Claude 1 (core backend), Claude 2 (business backend) and Claude 3 (frontend).
 The live schema is `GET /openapi.json` on a running backend; this file states intent, owners and
-status. **Status:** ✅ implemented · 🔜 planned (owner is building it). Call only ✅ endpoints;
+status. **Status:** ✅ implemented · 🔜 planned (owner is building it). Claude 2's ✅ endpoints live on
+`feat/backend-business` (586bbb9, rebased on Claude 1's 853e5fb; 148 tests verified combined by Claude 1 at 971b487). Call only ✅ endpoints;
 show 🔜 features as "not available yet".
 
 ## Conventions (all endpoints)
@@ -49,14 +50,14 @@ Password rule: more than 8 chars, an uppercase letter, a lowercase letter and a 
 ### Customers, catalog, discount rules — Claude 2
 | Status | Method & path | Role | Notes |
 |---|---|---|---|
-| 🔜 | GET/POST `/customers`, GET/PATCH `/customers/{id}` | A,S | `?q&is_active` |
-| 🔜 | GET `/customers/{id}/balance` | A,S | outstanding / overdue totals |
-| 🔜 | GET/POST/PATCH `/taxes` | read A,S · write A | `{id, name, rate, is_active}` |
-| 🔜 | GET/POST/PATCH `/payment-terms` | read A,S · write A | `{id, name, due_days, is_active}` |
-| 🔜 | GET/POST `/products`, GET/PATCH `/products/{id}` | read A,S · write A | product + `variants[]` |
-| 🔜 | POST `/products/{id}/variants`, PATCH `/products/{id}/variants/{vid}` | A | `{attribute, value, extra_price}` |
-| 🔜 | GET/POST `/plans`, GET/PATCH `/plans/{id}` | read A,S · write A | `?available_on=` |
-| 🔜 | GET/POST `/discounts`, GET/PATCH `/discounts/{id}` | read A,S · write A | `usage_count` is read-only |
+| ✅ | GET/POST `/customers`, GET/PATCH `/customers/{id}` | A,S | `?q&is_active` |
+| ✅ | GET `/customers/{id}/balance` | A,S | outstanding / overdue totals |
+| ✅ | GET/POST/PATCH `/taxes` | read A,S · write A | `{id, name, rate, is_active}` |
+| ✅ | GET/POST/PATCH `/payment-terms` | read A,S · write A | `{id, name, due_days, is_active}` |
+| ✅ | GET/POST `/products`, GET/PATCH `/products/{id}` | read A,S · write A | product + `variants[]` |
+| ✅ | POST `/products/{id}/variants`, PATCH `/products/{id}/variants/{vid}` | A | `{attribute, value, extra_price}` |
+| ✅ | GET/POST `/plans`, GET/PATCH `/plans/{id}` | read A,S · write A | `?available_on=` |
+| ✅ | GET/POST `/discounts`, GET/PATCH `/discounts/{id}` | read A,S · write A | `usage_count` is read-only |
 
 ### Quotations & subscriptions — Claude 1
 | Status | Method & path | Role | Notes |
@@ -110,12 +111,12 @@ sent_count, cancel_reason, replaces_invoice_id, lines[], payments[], available_a
 ### Payments — Claude 2 (ledger + manual) / Claude 1 (webhooks, jobs)
 | Status | Method & path | Role | Notes |
 |---|---|---|---|
-| 🔜 | GET `/payments?invoice_id&customer_id&method&status&date_from&date_to` | A,S | |
-| 🔜 | POST `/payments` | A,S | header `Idempotency-Key: <uuid>` required; `{invoice_id, method, amount, payment_date, note?}` |
-| 🔜 | POST `/payments/{id}/void` | A | `{reason}` |
-| 🔜 | GET `/invoices/{id}/payment-attempts` | A,S | Claude 2 |
-| 🔜 | POST `/invoices/{id}/collect` | A,S | charge via active mandate (Claude 2) |
-| 🔜 | GET `/mandates?customer_id` | A,S | Claude 2 |
+| ✅ | GET `/payments?invoice_id&customer_id&method&status&date_from&date_to` | A,S | |
+| ✅ | POST `/payments` | A,S | header `Idempotency-Key: <uuid>` required; `{invoice_id, method, amount, payment_date, note?}` |
+| ✅ | POST `/payments/{id}/void` | A | `{reason}` |
+| ✅ | GET `/invoices/{id}/payment-attempts` | A,S | Claude 2 |
+| ✅ | POST `/invoices/{id}/collect` | A,S | charge via active mandate (Claude 2) |
+| ✅ | GET `/mandates?customer_id` | A,S | Claude 2 |
 | ✅ | POST `/webhooks/payments/{provider}` | provider | signature-verified; Claude 1 |
 
 Methods: `cash, bank_transfer, card, upi, cheque, other`. Generating an invoice never counts as
@@ -124,11 +125,12 @@ payment: money exists only as a `posted` Payment.
 ### Reports — Claude 2
 | Status | Method & path | Role |
 |---|---|---|
-| 🔜 | GET `/reports/summary?date_from&date_to&plan_id&customer_id` | A,S |
-| 🔜 | GET `/reports/overdue-invoices` | A,S |
-| 🔜 | GET `/reports/revenue?date_from&date_to&granularity=day\|month` | A,S |
-| 🔜 | GET `/reports/payments-by-method?date_from&date_to` | A,S |
-| 🔜 | GET `/reports/subscriptions-by-status` | A,S |
+| ✅ | GET `/reports/summary?date_from&date_to&plan_id&customer_id` | A,S |
+| ✅ | GET `/reports/overdue-invoices` | A,S |
+| ✅ | GET `/reports/revenue?date_from&date_to&granularity=day\|month` | A,S |
+| ✅ | GET `/reports/payments-by-method?date_from&date_to` | A,S |
+| ✅ | GET `/reports/subscriptions-by-status` | A,S |
+| ✅ | GET `/reports/unapplied-payments` | A,S |
 
 ### Portal (customer, session-scoped)
 | Status | Method & path | Owner |
@@ -138,8 +140,8 @@ payment: money exists only as a `posted` Payment.
 | ✅ | POST `/portal/subscriptions/{id}/accept \| pause \| resume \| renew \| close` | Claude 1 |
 | ✅ | GET `/portal/invoices`, GET `/portal/invoices/{id}` | Claude 1 |
 | ✅ | GET/PATCH `/portal/profile` | Claude 1 |
-| 🔜 | GET `/portal/payments` | Claude 2 |
-| 🔜 | GET/POST `/portal/payment-methods`, DELETE `/portal/payment-methods/{id}` | Claude 2 |
+| ✅ | GET `/portal/payments` | Claude 2 |
+| ✅ | GET/POST `/portal/payment-methods`, DELETE `/portal/payment-methods/{id}` | Claude 2 |
 
 Portal visibility: customers never see draft subscriptions or draft invoices.
 
@@ -170,6 +172,8 @@ automatically. Nobody edits `main.py` to register routes.
   subscription's single attached discount (approved decision 8). It re-checks validity, usage limit
   and minimums on each invoice date. Usage is consumed atomically with the invoice insert and
   released on cancel. Claude 2's discount API must never write `usage_count`.
+- `subscriptions.auto_collect` and `subscriptions.mandate_id` have a single writer: Claude 2's
+  collections/mandate code. Claude 1's lifecycle code only reads them.
 - **Providers and collections** (Claude 2): `app/providers.get_adapter(name)` returns an adapter
   with `verify_webhook(headers, raw_body) -> list[ProviderEventIn]` (raises on a bad signature).
   `app/services/collections.py` exposes `handle_event(db, provider_event)`,
