@@ -230,6 +230,14 @@ def run_billing(
     with billing_lock(db) as acquired:
         if not acquired:
             raise AppError(409, "BILLING_RUN_IN_PROGRESS", "A billing run is already in progress")
+        # Holding the lock proves no other run is alive: close runs orphaned by a crash.
+        db.execute(
+            update(BillingRun)
+            .where(BillingRun.status == "running")
+            .values(
+                status="failed", error="interrupted (worker stopped)", finished_at=datetime.now(UTC)
+            )
+        )
         run = BillingRun(trigger=trigger, as_of=as_of, triggered_by=actor.id if actor else None)
         db.add(run)
         db.commit()

@@ -3,12 +3,14 @@ import pkgutil
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from sqlalchemy import text
+from sqlalchemy import select, text
 
 from app import routers as routers_pkg
 from app.config import get_settings
 from app.db import SessionLocal
 from app.errors import register_error_handlers
+from app.logging_setup import configure_logging, new_request_id, request_id_var
+from app.models import BillingRun
 
 API_PREFIX = "/api/v1"
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
@@ -39,8 +41,19 @@ def _include_routers(app: FastAPI) -> None:
 
 def create_app() -> FastAPI:
     _check_production_settings()
+    configure_logging()
     application = FastAPI(title="Brightloop Subscription Management API", version="0.2.0")
     register_error_handlers(application)
+
+    @application.middleware("http")
+    async def request_id(request: Request, call_next):
+        token = request_id_var.set(new_request_id(request.headers.get("x-request-id")))
+        try:
+            response = await call_next(request)
+            response.headers["X-Request-ID"] = request_id_var.get()
+            return response
+        finally:
+            request_id_var.reset(token)
 
     @application.middleware("http")
     async def csrf_origin_check(request: Request, call_next):
@@ -67,7 +80,16 @@ def create_app() -> FastAPI:
     def ready() -> dict:
         with SessionLocal() as db:
             db.execute(text("SELECT 1"))
-        return {"status": "ok", "database": "ok"}
+            last = db.scalar(select(BillingRun).order_by(BillingRun.id.desc()).limit(1))
+        return {
+            "status": "ok",
+            "database": "ok",
+            "last_billing_run": (
+                {"id": last.id, "status": last.status, "started_at": last.started_at}
+                if last
+                else None
+            ),
+        }
 
     _include_routers(application)
     return application
