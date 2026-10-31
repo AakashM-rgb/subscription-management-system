@@ -23,7 +23,17 @@ if curl -s -o /dev/null "$E2E_BASE_URL/api/v1/health"; then
 fi
 uv run uvicorn app.main:app --port "$PORT" > e2e-backend.log 2>&1 &
 API_PID=$!
-trap 'kill $API_PID 2>/dev/null || true' EXIT
+cleanup() {
+  # On Windows (Git Bash) uvicorn runs as a parent/child pair: kill the whole process tree,
+  # otherwise the child keeps the port and the next run silently hits a stale server.
+  if [[ -r "/proc/$API_PID/winpid" ]] && command -v taskkill >/dev/null; then
+    taskkill //F //T //PID "$(cat "/proc/$API_PID/winpid")" >/dev/null 2>&1 || true
+  else
+    pkill -P "$API_PID" 2>/dev/null || true
+    kill "$API_PID" 2>/dev/null || true
+  fi
+}
+trap cleanup EXIT
 for _ in $(seq 1 30); do curl -sf "$E2E_BASE_URL/api/v1/health/ready" >/dev/null && break; sleep 1; done
 
 uv run pytest e2e -o addopts="" -p no:cacheprovider -q -k "not test_worker_billed"
