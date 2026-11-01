@@ -218,6 +218,42 @@ test("retry: pending until the provider confirms, then paid through the ledger",
   await expect(staff.getByRole("row", { name: new RegExp(ids.invoiceNumber.replace(/\//g, "\\/")) })).toContainText("Collected");
 });
 
+test("an immediate rejection from Razorpay is a failed attempt with the provider's code and no automatic retry", async ({ browser }) => {
+  const staff = await adminPage(browser);
+  // Bill the next period: with the mandate still active the new invoice is confirmed automatically.
+  const nextPeriod = new Date(Date.now() + 32 * 86_400_000).toISOString().slice(0, 10);
+  await apiCall(staff.request, "post", "/billing/runs", { as_of: nextPeriod });
+  const open = await apiCall<{ items: { id: number; status: string }[] }>(staff.request, "get", `/invoices?subscription_id=${ids.subscriptionId}&status=confirmed`);
+  expect(open.items.length).toBeGreaterThanOrEqual(1);
+  const invoiceId = open.items[0].id;
+
+  await stub(staff.request, { chargeMode: "decline" });
+  await staff.goto(`/console/invoices/${invoiceId}`);
+  await staff.getByRole("button", { name: "Collect now" }).click();
+  await staff.getByRole("alertdialog").getByRole("button", { name: "Charge now" }).click();
+  await expect(staff.getByText(/The charge was declined: Card declined by issuer \(stub\)\.$/)).toBeVisible();
+  await expect(staff.getByText(/Collection started/)).toHaveCount(0);
+
+  const [attempt] = await apiCall<{ status: string; failure_code: string | null; next_retry_at: string | null }[]>(
+    staff.request,
+    "get",
+    `/invoices/${invoiceId}/payment-attempts`,
+  );
+  expect(attempt).toMatchObject({ status: "failed", failure_code: "BAD_REQUEST_ERROR", next_retry_at: null });
+
+  await staff.reload();
+  await expect(staff.getByText("Payment failed").first()).toBeVisible();
+  const attempts = staff.getByRole("heading", { name: "Collection" }).locator("xpath=ancestor::*[@data-slot='card']").getByRole("listitem");
+  await expect(attempts.first()).toContainText("Failed");
+  await expect(attempts.first()).toContainText("BAD_REQUEST_ERROR: Card declined by issuer (stub)");
+  await expect(attempts.first()).not.toContainText("Retry scheduled");
+  // Staff can still retry by hand.
+  await expect(staff.getByRole("button", { name: "Retry now" })).toBeVisible();
+  const inv = await apiCall<{ status: string }>(staff.request, "get", `/invoices/${invoiceId}`);
+  expect(inv.status).toBe("confirmed");
+  await stub(staff.request, { chargeMode: "accept" });
+});
+
 test("customer revokes autopay; staff see it revoked and collection stops", async ({ page, browser }) => {
   await signIn(page, ids.email, PASSWORD, /\/portal$/);
   await page.goto("/portal/profile");
