@@ -295,7 +295,8 @@ def test_webhook_signature_and_event_id() -> None:
     raw = json.dumps({"event": "payment.captured", "payload": {}}).encode()
     sig = hmac.new(WH_SECRET.encode(), raw, hashlib.sha256).hexdigest()
     [ev] = a.verify_webhook({"x-razorpay-signature": sig, "x-razorpay-event-id": "evt_1"}, raw)
-    assert (ev.event_id, ev.event_type) == ("evt_1", "payment.captured")
+    assert ev.event_id == "sha256:" + hashlib.sha256(raw).hexdigest()  # signed body, not header
+    assert ev.event_type == "payment.captured"
     with pytest.raises(WebhookVerificationError):
         a.verify_webhook({"x-razorpay-signature": sig}, raw + b" ")
     with pytest.raises(WebhookVerificationError):

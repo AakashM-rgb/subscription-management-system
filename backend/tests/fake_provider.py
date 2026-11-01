@@ -38,6 +38,7 @@ class FakeProvider:
     name: str = "fakepay"
     charge_error: ProviderError | None = None
     charge_outcomes: dict[str, ChargeResult] = field(default_factory=dict)
+    fetch_errors: dict[str, ProviderError] = field(default_factory=dict)
     mandate_states: dict[str, MandateUpdate] = field(default_factory=dict)
     order_metadata: dict[str, dict] = field(default_factory=dict)
     calls: list[tuple] = field(default_factory=list)
@@ -90,6 +91,8 @@ class FakeProvider:
         return ChargeResult(status="processing", provider_reference=order)
 
     def fetch_charge(self, provider_reference: str) -> ChargeResult:
+        if provider_reference in self.fetch_errors:
+            raise self.fetch_errors[provider_reference]
         return self.charge_outcomes.get(
             provider_reference,
             ChargeResult(status="processing", provider_reference=provider_reference),

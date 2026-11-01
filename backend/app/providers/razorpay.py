@@ -202,14 +202,20 @@ class RazorpayAdapter:
     def complete_authorization(self, *, reference: str, client_payload: dict) -> MandateUpdate:
         payment_id = str(client_payload.get("razorpay_payment_id") or "")
         signature = str(client_payload.get("razorpay_signature") or "")
-        # The order id comes from our records (reference), never from the browser.
+        # `reference` is our authorisation order id until a webhook replaces it with the token
+        # id. The order id then comes from the browser, which is safe only because the
+        # signature plus the token check below bind the payment to this mandate.
+        by_token = reference.startswith("token_")
+        order_id = str(client_payload.get("razorpay_order_id") or "") if by_token else reference
         expected = hmac.new(
-            self._key_secret.encode(), f"{reference}|{payment_id}".encode(), hashlib.sha256
+            self._key_secret.encode(), f"{order_id}|{payment_id}".encode(), hashlib.sha256
         ).hexdigest()
-        if not payment_id or not hmac.compare_digest(expected, signature):
+        if not payment_id or not order_id or not hmac.compare_digest(expected, signature):
             raise WebhookVerificationError("Checkout signature verification failed")
         payment = self._call("GET", f"/payments/{payment_id}")
-        if payment.get("order_id") != reference:
+        if payment.get("order_id") != order_id or (
+            by_token and payment.get("token_id") != reference
+        ):
             raise WebhookVerificationError("Checkout payment does not belong to this mandate")
         token_id = payment.get("token_id")
         if not token_id:
@@ -346,7 +352,10 @@ class RazorpayAdapter:
             body = json.loads(raw_body)
         except ValueError as exc:
             raise WebhookVerificationError("Webhook body is not JSON") from exc
-        event_id = headers.get("x-razorpay-event-id") or hashlib.sha256(raw_body).hexdigest()
+        # Dedupe on the signed body, not on X-Razorpay-Event-Id: the header is not covered by
+        # the signature, so a replayed body with an edited header would look like a new event.
+        # Razorpay's redeliveries are byte-identical, so they still collapse to one event.
+        event_id = "sha256:" + hashlib.sha256(raw_body).hexdigest()
         return [ProviderEventIn(event_id=event_id, event_type=str(body.get("event")), payload=body)]
 
     def parse_event(self, event_type: str, payload: dict) -> NormalizedEvent:

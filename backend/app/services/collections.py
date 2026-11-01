@@ -640,6 +640,25 @@ def reconcile_pending(db: Session, now: datetime) -> int:
                 handled += _reconcile_attempt(db, attempt, now)
         except ProviderError as exc:
             log.warning("reconcile attempt %s: %s", attempt.id, exc.message)
+            # Rotate to the back so a persistently failing lookup cannot starve newer attempts.
+            attempt.updated_at = now
+            if attempt.created_at < now - timedelta(
+                hours=get_provider_settings().pending_timeout_hours
+            ):
+                # Unreachable for the whole window: give up (no auto-retry, so no double charge).
+                apply_charge_result(
+                    db,
+                    attempt,
+                    ChargeResult(
+                        status="failed",
+                        provider_reference=attempt.provider_reference or "",
+                        failure_code="timed_out",
+                        failure_message="The provider could not confirm the charge in time",
+                    ),
+                    now,
+                )
+                attempt.next_retry_at = None
+                handled += 1
 
     mandates = db.scalars(
         select(PaymentMandate)
@@ -817,6 +836,25 @@ def handle_event(db: Session, event: ProviderEvent) -> str:
     if result.status != "succeeded":
         return "ignored"
     meta = adapter.reference_metadata(ev.provider_reference)
+    if str(meta.get("purpose")) == "mandate":
+        # The small payment the provider takes to authorise a mandate, arriving after the
+        # mandate reference was already replaced. Not an invoice payment and not unapplied.
+        mandate_id = str(meta.get("mandate_id") or "")
+        mandate = db.get(PaymentMandate, int(mandate_id)) if mandate_id.isdigit() else None
+        audit.record(
+            db,
+            action="mandate.authorization_payment",
+            entity_type="customer" if mandate else "provider_event",
+            entity_id=mandate.customer_id if mandate else event.id,
+            actor_type="provider",
+            data={
+                "provider": event.provider,
+                "provider_payment_id": result.provider_payment_id,
+                "amount": str(result.amount),
+                "mandate_id": mandate.id if mandate else None,
+            },
+        )
+        return "processed"
     invoice_id = meta.get("invoice_id")
     if not str(invoice_id or "").isdigit() or db.get(Invoice, int(invoice_id)) is None:
         audit.record(
