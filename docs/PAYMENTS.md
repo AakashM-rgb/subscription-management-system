@@ -83,6 +83,8 @@ Notes from Razorpay's documentation that shape the implementation:
   key (`inv<id>-a<n>`), and charges are matched back to attempts by order id.
 - UPI charge outcomes can take 24–36 hours. Pending attempts are polled in rotation, so slow
   ones never block newer ones.
+- Webhook replay protection keys on the signed request body, not on the unsigned
+  `X-Razorpay-Event-Id` header, so a replayed body with an edited header is still a duplicate.
 - A UPI registration can report a failed "dummy" payment that still carries a token. That counts
   as a successful registration.
 - Unfinished authorisations are marked failed after 24 hours.

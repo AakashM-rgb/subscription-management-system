@@ -431,12 +431,12 @@ def test_duplicate_razorpay_deliveries_post_one_payment(client, db, razorpay) ->
     )
     statuses = dict(
         db.execute(
-            select(ProviderEvent.event_id, ProviderEvent.status).where(
-                ProviderEvent.event_id.in_(["evt_cap", "evt_paid"])
+            select(ProviderEvent.event_type, ProviderEvent.status).where(
+                ProviderEvent.event_type.in_(["payment.captured", "order.paid"])
             )
         ).all()
     )
-    assert statuses == {"evt_cap": "processed", "evt_paid": "ignored"}
+    assert statuses == {"payment.captured": "processed", "order.paid": "ignored"}
     [payment] = db.scalars(select(Payment).where(Payment.invoice_id == invoice.id)).all()
     assert (payment.provider, payment.provider_payment_id, payment.method, payment.amount) == (
         "razorpay",
