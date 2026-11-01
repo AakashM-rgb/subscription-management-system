@@ -15,7 +15,7 @@ from app.schemas.discounts import (
     DiscountUpdateIn,
     check_discount_fields,
 )
-from app.services.common import apply_changes, business_today
+from app.services.common import apply_audited, audited_add, business_today
 
 router = APIRouter(prefix="/discounts", tags=["discounts"])
 
@@ -112,12 +112,18 @@ def list_discounts(
 
 
 @router.post("", response_model=DiscountOut, status_code=201)
-def create_discount(body: DiscountCreateIn, _: AdminUser, db: DB) -> DiscountOut:
+def create_discount(body: DiscountCreateIn, admin: AdminUser, db: DB) -> DiscountOut:
     """Only the admin creates discount rules."""
     discount = Discount(**body.model_dump(exclude={"product_ids"}))
     discount.products = load_products(db, body.product_ids) if body.product_ids else []
-    db.add(discount)
-    db.commit()
+    audited_add(
+        db,
+        discount,
+        entity_type="discount",
+        actor=admin,
+        conflict="Could not create the discount",
+        data=body.model_dump(mode="json"),
+    )
     return to_out(load_discount(db, discount.id), business_today())
 
 
@@ -127,7 +133,9 @@ def get_discount(discount_id: int, _: StaffUser, db: DB) -> DiscountOut:
 
 
 @router.patch("/{discount_id}", response_model=DiscountOut)
-def update_discount(discount_id: int, body: DiscountUpdateIn, _: AdminUser, db: DB) -> DiscountOut:
+def update_discount(
+    discount_id: int, body: DiscountUpdateIn, admin: AdminUser, db: DB
+) -> DiscountOut:
     """Changes affect invoices generated afterwards; issued invoices keep their amounts.
     The row is locked so the usage check cannot race invoice generation."""
     discount = load_discount(db, discount_id, for_update=True)
@@ -159,7 +167,19 @@ def update_discount(discount_id: int, body: DiscountUpdateIn, _: AdminUser, db: 
             "INVALID_STATE",
             f"usage_limit cannot be below the {discount.usage_count} uses already counted",
         )
-    apply_changes(discount, body, exclude={"product_ids"})
+    before_ids = sorted(p.id for p in discount.products)
+    after_ids = sorted(set(product_ids)) if "product_ids" in fields else before_ids
+    apply_audited(
+        db,
+        discount,
+        body,
+        entity_type="discount",
+        actor=admin,
+        exclude={"product_ids"},
+        extra={"product_ids": {"from": before_ids, "to": after_ids}}
+        if after_ids != before_ids
+        else None,
+    )
     if "product_ids" in fields:
         discount.products = load_products(db, product_ids) if product_ids else []
     db.commit()
