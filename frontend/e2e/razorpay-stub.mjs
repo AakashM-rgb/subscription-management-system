@@ -11,7 +11,9 @@ import http from "node:http";
 
 const port = Number(process.env.RAZORPAY_STUB_PORT ?? 8199);
 const state = { tokenStatus: "confirmed", chargeMode: "accept", seq: 0, orders: new Map(), requests: [] };
-const next = (prefix) => `${prefix}_e2e${(++state.seq).toString().padStart(5, "0")}`;
+// A per-run prefix keeps ids unique across stub restarts, as Razorpay ids are globally unique.
+const run = Date.now().toString(36);
+const next = (prefix) => `${prefix}_e2e${run}${(++state.seq).toString().padStart(5, "0")}`;
 
 function send(res, status, body) {
   res.writeHead(status, { "Content-Type": "application/json" });
