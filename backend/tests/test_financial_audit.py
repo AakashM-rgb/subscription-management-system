@@ -776,3 +776,36 @@ def test_explicit_rejection_after_order_is_a_definite_failure(staff_client, db, 
     other, _ = autopay_invoice(db)
     fake.charge_error = ProviderError("timeout", reference="order_unknown")
     assert collections.collect_invoice(db, other.id, NOW).status == "processing"
+
+
+def test_duplicate_provider_mandate_id_is_a_conflict_not_a_crash(client, db, fake) -> None:
+    cust = f.portal_customer(db, "twin@portal.example.com")
+    cust.phone = "+919847020005"
+    taken = active_mandate(db, f.customer(db))
+    login(client, "twin@portal.example.com")
+    started = client.post(f"{API}/portal/payment-methods", json={"method_type": "card"}).json()
+    ref = started["checkout"]["order_id"]
+    # The (misbehaving) provider hands back a token that another mandate already holds.
+    db.execute(
+        update(PaymentMandate)
+        .where(PaymentMandate.id == taken.id)
+        .values(provider_mandate_id=f"tok_{ref}")
+    )
+    res = client.post(
+        f"{API}/portal/payment-methods/{started['mandate']['id']}/confirm",
+        json={"provider_response": {"signature": f"ok:{ref}"}},
+    )
+    assert res.status_code == 409 and res.json()["error"]["code"] == "DUPLICATE"
+    # The same conflict arriving by webhook is recorded, not retried forever.
+    ev = event(
+        db, "payment_authorized", authorization_reference=ref, provider_mandate_id=f"tok_{ref}"
+    )
+    assert collections.handle_event(db, ev) == "ignored"
+    assert (
+        db.scalar(
+            select(func.count())
+            .select_from(AuditEvent)
+            .where(AuditEvent.action == "mandate.conflict")
+        )
+        >= 1
+    )

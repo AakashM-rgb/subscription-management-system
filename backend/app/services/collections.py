@@ -221,6 +221,20 @@ def apply_mandate_update(
     """Apply the provider's view of a mandate. Returns True if anything changed."""
     changed = False
     if update.provider_mandate_id and update.provider_mandate_id != mandate.provider_mandate_id:
+        owner = db.scalar(
+            select(PaymentMandate.id).where(
+                PaymentMandate.provider == mandate.provider,
+                PaymentMandate.provider_mandate_id == update.provider_mandate_id,
+                PaymentMandate.id != mandate.id,
+            )
+        )
+        if owner is not None:
+            raise AppError(
+                409,
+                "DUPLICATE",
+                "The provider reported a mandate that already belongs to another payment method",
+                {"mandate_id": owner},
+            )
         mandate.provider_mandate_id = update.provider_mandate_id
         changed = True
     if update.method_type and not mandate.method_type:
@@ -740,12 +754,31 @@ def handle_event(db: Session, event: ProviderEvent) -> str:
         if ev.provider_mandate_id:
             # The provider issued the mandate (even a UPI "dummy" failed payment carries one);
             # it becomes active on the provider's confirmation (event or reconcile).
-            apply_mandate_update(
-                db,
-                mandate,
-                MandateUpdate(status=mandate.status, provider_mandate_id=ev.provider_mandate_id),
-                actor_type="provider",
-            )
+            try:
+                with db.begin_nested():
+                    apply_mandate_update(
+                        db,
+                        mandate,
+                        MandateUpdate(
+                            status=mandate.status, provider_mandate_id=ev.provider_mandate_id
+                        ),
+                        actor_type="provider",
+                    )
+            except AppError as exc:
+                # A permanent conflict: retrying the event can never succeed. Record it.
+                audit.record(
+                    db,
+                    action="mandate.conflict",
+                    entity_type="customer",
+                    entity_id=mandate.customer_id,
+                    actor_type="provider",
+                    data={
+                        "mandate_id": mandate.id,
+                        "provider_mandate_id": ev.provider_mandate_id,
+                        "reason": exc.message,
+                    },
+                )
+                return "ignored"
             return "processed"
         if ev.kind == "payment_failed":
             apply_mandate_update(
