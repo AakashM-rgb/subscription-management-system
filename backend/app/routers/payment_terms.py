@@ -6,7 +6,7 @@ from app.models import PaymentTerm
 from app.pagination import paginate
 from app.schemas import PageOut
 from app.schemas.catalog import PaymentTermCreateIn, PaymentTermOut, PaymentTermUpdateIn
-from app.services.common import apply_changes, commit_or_conflict, get_or_404
+from app.services.common import apply_audited, audited_add, commit_or_conflict, get_or_404
 
 router = APIRouter(prefix="/payment-terms", tags=["payment terms"])
 
@@ -22,10 +22,16 @@ def list_payment_terms(_: StaffUser, db: DB, page: Page, is_active: bool | None 
 
 
 @router.post("", response_model=PaymentTermOut, status_code=201)
-def create_payment_term(body: PaymentTermCreateIn, _: AdminUser, db: DB) -> PaymentTerm:
+def create_payment_term(body: PaymentTermCreateIn, admin: AdminUser, db: DB) -> PaymentTerm:
     term = PaymentTerm(**body.model_dump())
-    db.add(term)
-    commit_or_conflict(db, DUPLICATE)
+    audited_add(
+        db,
+        term,
+        entity_type="payment_term",
+        actor=admin,
+        conflict=DUPLICATE,
+        data=body.model_dump(mode="json"),
+    )
     db.refresh(term)
     return term
 
@@ -37,11 +43,11 @@ def get_payment_term(term_id: int, _: StaffUser, db: DB) -> PaymentTerm:
 
 @router.patch("/{term_id}", response_model=PaymentTermOut)
 def update_payment_term(
-    term_id: int, body: PaymentTermUpdateIn, _: AdminUser, db: DB
+    term_id: int, body: PaymentTermUpdateIn, admin: AdminUser, db: DB
 ) -> PaymentTerm:
     """Due dates are fixed on each invoice when it is issued, so edits only affect new ones."""
     term = get_or_404(db, PaymentTerm, term_id, "Payment term")
-    apply_changes(term, body)
+    apply_audited(db, term, body, entity_type="payment_term", actor=admin)
     commit_or_conflict(db, DUPLICATE)
     db.refresh(term)
     return term

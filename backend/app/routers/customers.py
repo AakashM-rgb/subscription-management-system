@@ -13,7 +13,7 @@ from app.schemas.customers import (
     CustomerOut,
     CustomerUpdateIn,
 )
-from app.services.common import apply_changes, business_today, get_or_404
+from app.services.common import apply_audited, audited_add, business_today, get_or_404
 
 router = APIRouter(prefix="/customers", tags=["customers"])
 
@@ -42,12 +42,14 @@ def list_customers(
 
 
 @router.post("", response_model=CustomerOut, status_code=201)
-def create_customer(body: CustomerCreateIn, _: StaffUser, db: DB) -> Customer:
+def create_customer(body: CustomerCreateIn, user: StaffUser, db: DB) -> Customer:
     """Customers added by staff have no login; self-signup creates its own customer record."""
     customer = Customer(**body.model_dump())
     customer.email = customer.email.lower()
-    db.add(customer)
-    db.commit()
+    # Personal data stays out of the append-only audit trail: the event records only who and when.
+    audited_add(
+        db, customer, entity_type="customer", actor=user, conflict="Could not create the customer"
+    )
     db.refresh(customer)
     return customer
 
@@ -58,7 +60,7 @@ def get_customer(customer_id: int, _: StaffUser, db: DB) -> Customer:
 
 
 @router.patch("/{customer_id}", response_model=CustomerOut)
-def update_customer(customer_id: int, body: CustomerUpdateIn, _: StaffUser, db: DB) -> Customer:
+def update_customer(customer_id: int, body: CustomerUpdateIn, user: StaffUser, db: DB) -> Customer:
     customer = get_or_404(db, Customer, customer_id, "Customer")
     if customer.user_id is not None and body.email is not None:
         if body.email.lower() != customer.email.lower():
@@ -66,7 +68,7 @@ def update_customer(customer_id: int, body: CustomerUpdateIn, _: StaffUser, db: 
             raise AppError(
                 409, "INVALID_STATE", "This customer has a portal login; its email cannot change"
             )
-    apply_changes(customer, body)
+    apply_audited(db, customer, body, entity_type="customer", actor=user, redact=True)
     customer.email = customer.email.lower()
     db.commit()
     db.refresh(customer)

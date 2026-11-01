@@ -17,7 +17,7 @@ from app.schemas.catalog import (
     VariantOut,
     VariantUpdateIn,
 )
-from app.services.common import apply_changes, commit_or_conflict
+from app.services.common import apply_audited, audited_add, commit_or_conflict
 
 router = APIRouter(prefix="/products", tags=["products"])
 
@@ -64,7 +64,7 @@ def list_products(
 
 
 @router.post("", response_model=ProductDetailOut, status_code=201)
-def create_product(body: ProductCreateIn, _: AdminUser, db: DB) -> Product:
+def create_product(body: ProductCreateIn, admin: AdminUser, db: DB) -> Product:
     check_tax(db, body.tax_id)
     seen = set()
     for v in body.variants:
@@ -74,8 +74,14 @@ def create_product(body: ProductCreateIn, _: AdminUser, db: DB) -> Product:
         seen.add(key)
     product = Product(**body.model_dump(exclude={"variants"}))
     product.variants = [ProductVariant(**v.model_dump()) for v in body.variants]
-    db.add(product)
-    commit_or_conflict(db, DUPLICATE_VARIANT)
+    audited_add(
+        db,
+        product,
+        entity_type="product",
+        actor=admin,
+        conflict=DUPLICATE_VARIANT,
+        data=body.model_dump(mode="json"),
+    )
     return load_product(db, product.id)
 
 
@@ -85,36 +91,42 @@ def get_product(product_id: int, _: StaffUser, db: DB) -> Product:
 
 
 @router.patch("/{product_id}", response_model=ProductDetailOut)
-def update_product(product_id: int, body: ProductUpdateIn, _: AdminUser, db: DB) -> Product:
+def update_product(product_id: int, body: ProductUpdateIn, admin: AdminUser, db: DB) -> Product:
     """Price changes apply to subscriptions created afterwards; existing subscription and
     invoice lines keep the price they were sold at. Products are archived, never deleted."""
     product = load_product(db, product_id)
     if "tax_id" in body.model_fields_set:
         check_tax(db, body.tax_id)
-    apply_changes(product, body)
+    apply_audited(db, product, body, entity_type="product", actor=admin)
     db.commit()
     db.expire_all()
     return load_product(db, product_id)
 
 
 @router.post("/{product_id}/variants", response_model=VariantOut, status_code=201)
-def add_variant(product_id: int, body: VariantCreateIn, _: AdminUser, db: DB) -> ProductVariant:
+def add_variant(product_id: int, body: VariantCreateIn, admin: AdminUser, db: DB) -> ProductVariant:
     product = load_product(db, product_id)
     variant = ProductVariant(product_id=product.id, **body.model_dump())
-    db.add(variant)
-    commit_or_conflict(db, DUPLICATE_VARIANT)
+    audited_add(
+        db,
+        variant,
+        entity_type="product_variant",
+        actor=admin,
+        conflict=DUPLICATE_VARIANT,
+        data={"product_id": product.id, **body.model_dump(mode="json")},
+    )
     db.refresh(variant)
     return variant
 
 
 @router.patch("/{product_id}/variants/{variant_id}", response_model=VariantOut)
 def update_variant(
-    product_id: int, variant_id: int, body: VariantUpdateIn, _: AdminUser, db: DB
+    product_id: int, variant_id: int, body: VariantUpdateIn, admin: AdminUser, db: DB
 ) -> ProductVariant:
     variant = db.get(ProductVariant, variant_id)
     if variant is None or variant.product_id != product_id:
         raise not_found("Variant")
-    apply_changes(variant, body)
+    apply_audited(db, variant, body, entity_type="product_variant", actor=admin)
     commit_or_conflict(db, DUPLICATE_VARIANT)
     db.refresh(variant)
     return variant

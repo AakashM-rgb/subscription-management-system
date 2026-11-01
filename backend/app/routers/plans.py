@@ -11,7 +11,7 @@ from app.pagination import paginate
 from app.routers.products import check_tax
 from app.schemas import PageOut
 from app.schemas.catalog import BillingPeriod, PlanCreateIn, PlanOut, PlanUpdateIn
-from app.services.common import apply_changes
+from app.services.common import apply_audited, audited_add
 
 router = APIRouter(prefix="/plans", tags=["plans"])
 
@@ -54,11 +54,17 @@ def list_plans(
 
 
 @router.post("", response_model=PlanOut, status_code=201)
-def create_plan(body: PlanCreateIn, _: AdminUser, db: DB) -> Plan:
+def create_plan(body: PlanCreateIn, admin: AdminUser, db: DB) -> Plan:
     check_tax(db, body.tax_id)
     plan = Plan(**body.model_dump())
-    db.add(plan)
-    db.commit()
+    audited_add(
+        db,
+        plan,
+        entity_type="plan",
+        actor=admin,
+        conflict="Could not create the plan",
+        data=body.model_dump(mode="json"),
+    )
     return load_plan(db, plan.id)
 
 
@@ -68,7 +74,7 @@ def get_plan(plan_id: int, _: StaffUser, db: DB) -> Plan:
 
 
 @router.patch("/{plan_id}", response_model=PlanOut)
-def update_plan(plan_id: int, body: PlanUpdateIn, _: AdminUser, db: DB) -> Plan:
+def update_plan(plan_id: int, body: PlanUpdateIn, admin: AdminUser, db: DB) -> Plan:
     """The price applies to subscriptions created afterwards (subscription lines keep their
     unit price). The billing period cannot change while live subscriptions depend on it."""
     plan = load_plan(db, plan_id)
@@ -95,7 +101,7 @@ def update_plan(plan_id: int, body: PlanUpdateIn, _: AdminUser, db: DB) -> Plan:
             raise AppError(
                 422, "VALIDATION_ERROR", "available_until must be on or after available_from"
             )
-    apply_changes(plan, body)
+    apply_audited(db, plan, body, entity_type="plan", actor=admin)
     db.commit()
     db.expire_all()
     return load_plan(db, plan_id)
