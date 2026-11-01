@@ -131,9 +131,12 @@ class RazorpayAdapter:
             raise ProviderError(f"Razorpay returned non-JSON ({res.status_code})") from exc
         if res.status_code >= 400:
             err = data.get("error") or {}
+            # An explicit rejection: Razorpay did not act on the request.
             raise ProviderError(
                 err.get("description") or f"Razorpay rejected the request ({res.status_code})",
                 retryable=res.status_code == 429,
+                outcome_unknown=False,
+                code=err.get("code"),
             )
         return data
 

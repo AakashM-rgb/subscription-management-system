@@ -42,13 +42,27 @@ class WebhookVerificationError(AppError):
 
 
 class ProviderError(AppError):
-    """The provider rejected a call or could not be reached. `reference` is set when the call
-    got far enough to create something on the provider side (so reconciliation can find it)."""
+    """The provider rejected a call or could not be reached.
 
-    def __init__(self, message: str, reference: str | None = None, retryable: bool = True):
+    - `reference`: set when the call got far enough to create something on the provider side.
+    - `outcome_unknown`: True when we cannot tell whether the provider acted (timeout, network
+      error, 5xx); False for an explicit rejection (4xx), where nothing was charged.
+    - `retryable`: whether trying again later may succeed.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        reference: str | None = None,
+        retryable: bool = True,
+        outcome_unknown: bool | None = None,
+        code: str | None = None,
+    ):
         super().__init__(502, "PROVIDER_ERROR", message)
         self.reference = reference
         self.retryable = retryable
+        self.outcome_unknown = retryable if outcome_unknown is None else outcome_unknown
+        self.provider_code = code
 
 
 @dataclass(frozen=True)

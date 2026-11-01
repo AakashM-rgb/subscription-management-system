@@ -751,3 +751,28 @@ def test_catch_up_billing_keeps_discount_valid_in_each_period(admin_client, db, 
         select(Invoice).where(Invoice.subscription_id == sub.id).order_by(Invoice.period_start)
     ).all()
     assert [i.amount_discount for i in invoices] == [D("200.00"), D("200.00"), D("0.00"), D("0.00")]
+
+
+def test_explicit_rejection_after_order_is_a_definite_failure(staff_client, db, fake) -> None:
+    """A 4xx from the charge call means nothing was charged: failed now, not 'pending'."""
+    invoice, _ = autopay_invoice(db)
+    fake.charge_error = ProviderError(
+        "Card declined by issuer",
+        reference="order_declined",
+        retryable=True,
+        outcome_unknown=False,
+        code="BAD_REQUEST_ERROR",
+    )
+    res = staff_client.post(f"{API}/invoices/{invoice.id}/collect")
+    assert res.status_code == 201
+    body = res.json()
+    assert (body["status"], body["failure_code"], body["provider_reference"]) == (
+        "failed",
+        "BAD_REQUEST_ERROR",
+        "order_declined",
+    )
+    assert body["next_retry_at"] is not None
+    # Unknown outcomes (timeout after the order exists) still wait for reconciliation.
+    other, _ = autopay_invoice(db)
+    fake.charge_error = ProviderError("timeout", reference="order_unknown")
+    assert collections.collect_invoice(db, other.id, NOW).status == "processing"

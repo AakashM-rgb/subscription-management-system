@@ -211,6 +211,7 @@ def test_charge_failure_after_order_keeps_reference() -> None:
             metadata={},
         )
     assert exc.value.reference == "order_c2" and exc.value.retryable is False
+    assert exc.value.outcome_unknown is False
     assert "maximum amount" in exc.value.message
 
 
@@ -224,6 +225,7 @@ def test_transport_errors_are_retryable() -> None:
     with pytest.raises(ProviderError) as exc:
         a.fetch_charge("order_1")
     assert exc.value.retryable is True and exc.value.reference is None
+    assert exc.value.outcome_unknown is True
     a5, _ = adapter({("GET", "/v1/orders/order_1/payments"): (503, {})})
     with pytest.raises(ProviderError) as exc:
         a5.fetch_charge("order_1")

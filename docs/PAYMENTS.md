@@ -68,7 +68,9 @@ everything else, including manual payments, keeps working.
 2. Subscribe to: `payment.authorized`, `payment.captured`, `payment.failed`, `order.paid`,
    `token.confirmed`, `token.rejected`, `token.cancelled`, `token.paused`.
 3. Make sure Recurring Payments (cards and/or UPI Autopay) is enabled on the account.
-4. Run the worker (`python -m app.worker`). It schedules `collect_due`, `retry_failed`,
+4. Check the keys with `uv run python -m scripts.razorpay_smoke` (test keys only; creates a
+   test customer and an unpaid authorisation order, checks webhook signing; moves no money).
+5. Run the worker (`python -m app.worker`). It schedules `collect_due`, `retry_failed`,
    `reconcile_pending` and webhook re-processing.
 
 Notes from Razorpay's documentation that shape the implementation:
