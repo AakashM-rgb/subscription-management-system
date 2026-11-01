@@ -375,13 +375,14 @@ def collect_invoice(
         )
     except ProviderError as exc:
         attempt.provider_reference = exc.reference
-        if exc.reference is not None:
-            # Something exists at the provider; its outcome is unknown until reconciled.
+        if exc.reference is not None and exc.outcome_unknown:
+            # The provider may have acted (timeout, 5xx): unknown until reconciled.
             attempt.status = "processing"
             attempt.failure_message = exc.message
         else:
+            # Never reached the provider, or explicitly rejected: nothing was charged.
             attempt.status = "failed"
-            attempt.failure_code = "provider_error"
+            attempt.failure_code = exc.provider_code or "provider_error"
             attempt.failure_message = exc.message
             attempt.next_retry_at = (
                 _retry_at(attempt.attempt_number, now) if exc.retryable else None
