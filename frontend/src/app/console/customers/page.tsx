@@ -1,6 +1,7 @@
 "use client";
 
 import { Plus, Users } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { DataTable, FilterSelect, SearchInput, TableToolbar, type ColumnDef } from "@/components/data-table";
@@ -41,6 +42,7 @@ const columns: ColumnDef<Customer, unknown>[] = [
 ];
 
 export default function CustomersPage() {
+  const router = useRouter();
   const list = useListState(["is_active"] as const);
   const [creating, setCreating] = useState(false);
   const query = usePaged<Customer>("customers", "/customers", {
@@ -102,7 +104,7 @@ export default function CustomersPage() {
           />
         }
       />
-      <CustomerFormDialog open={creating} onOpenChange={setCreating} />
+      <CustomerFormDialog open={creating} onOpenChange={setCreating} onSaved={(c) => router.push(`/console/customers/${c.id}`)} />
     </PageBody>
   );
 }

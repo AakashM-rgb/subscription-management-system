@@ -10,6 +10,7 @@ import { DataTable, type ColumnDef } from "@/components/data-table";
 import { EmptyState } from "@/components/feedback";
 import { FormDialog } from "@/components/form-dialog";
 import { applyServerErrors, NumberField, SwitchField, TextField } from "@/components/form-fields";
+import { RecentlyAdded, useRecentlyAdded } from "@/components/recently-added";
 import { PageBody, PageHeader } from "@/components/page";
 import { Can, useCan } from "@/components/session";
 import { StatusBadge } from "@/components/status-badge";
@@ -28,7 +29,17 @@ const schema = z.object({
 });
 type Values = z.infer<typeof schema>;
 
-function TermDialog({ open, onOpenChange, term }: { open: boolean; onOpenChange: (o: boolean) => void; term: PaymentTerm | null }) {
+function TermDialog({
+  open,
+  onOpenChange,
+  term,
+  onSaved,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  term: PaymentTerm | null;
+  onSaved?: (saved: PaymentTerm) => void;
+}) {
   const values = (t: PaymentTerm | null): Values => ({ name: t?.name ?? "", due_days: t ? String(t.due_days) : "", is_active: t?.is_active ?? true });
   const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: values(term) });
   useEffect(() => {
@@ -44,7 +55,10 @@ function TermDialog({ open, onOpenChange, term }: { open: boolean; onOpenChange:
     invalidate: ["payment-terms"],
     success: term ? "Payment term updated" : "Payment term created",
     toastError: false,
-    onSuccess: () => onOpenChange(false),
+    onSuccess: (saved) => {
+      onOpenChange(false);
+      onSaved?.(saved);
+    },
   });
   return (
     <FormDialog
@@ -67,6 +81,7 @@ function TermDialog({ open, onOpenChange, term }: { open: boolean; onOpenChange:
 
 export default function PaymentTermsPage() {
   const list = useListState();
+  const recent = useRecentlyAdded<PaymentTerm>();
   const canWrite = useCan("paymentTerm.write");
   const [dialog, setDialog] = useState<{ open: boolean; term: PaymentTerm | null }>({ open: false, term: null });
   const query = usePaged<PaymentTerm>("payment-terms", "/payment-terms", { page: list.page, page_size: list.pageSize });
@@ -105,6 +120,16 @@ export default function PaymentTermsPage() {
           </Can>
         }
       />
+      <RecentlyAdded
+        items={recent.items}
+        onClear={recent.clear}
+        render={(t) => (
+          <>
+            <span className="font-medium">{t.name}</span>
+            <span className="text-muted-foreground">{t.due_days === 0 ? "Due immediately" : `${t.due_days} days`}</span>
+          </>
+        )}
+      />
       <DataTable
         caption="Payment terms"
         columns={columns}
@@ -116,7 +141,7 @@ export default function PaymentTermsPage() {
         pagination={{ page: list.page, pageSize: list.pageSize, onPageChange: list.setPage }}
         empty={<EmptyState icon={HandCoins} title="No payment terms" />}
       />
-      <TermDialog open={dialog.open} onOpenChange={(open) => setDialog((s) => ({ ...s, open }))} term={dialog.term} />
+      <TermDialog open={dialog.open} onOpenChange={(open) => setDialog((s) => ({ ...s, open }))} term={dialog.term} onSaved={(saved) => (dialog.term ? recent.replace(saved) : recent.add(saved))} />
     </PageBody>
   );
 }

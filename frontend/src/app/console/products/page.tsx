@@ -1,6 +1,7 @@
 "use client";
 
 import { Package, Plus } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { DataTable, FilterSelect, SearchInput, TableToolbar, type ColumnDef } from "@/components/data-table";
@@ -36,6 +37,7 @@ const columns: ColumnDef<Product, unknown>[] = [
 ];
 
 export default function ProductsPage() {
+  const router = useRouter();
   const list = useListState(["product_type", "is_active"] as const);
   const [creating, setCreating] = useState(false);
   const query = usePaged<Product>("products", "/products", {
@@ -100,7 +102,7 @@ export default function ProductsPage() {
           />
         }
       />
-      <ProductFormDialog open={creating} onOpenChange={setCreating} />
+      <ProductFormDialog open={creating} onOpenChange={setCreating} onSaved={(p) => router.push(`/console/products/${p.id}`)} />
     </PageBody>
   );
 }

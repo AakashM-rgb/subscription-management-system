@@ -100,6 +100,19 @@ state, overdue days, collection status, payment attempts, failures and next retr
   → void, cancel and re-issue, manual collection (nothing claimed without the backend), portal data
   isolation, and pause/resume/renew/close with audit history.
 
+- Automatic collection (`e2e/write-autopay.spec.ts`) runs the backend's **real** Razorpay adapter,
+  collections, webhook and ledger code against `e2e/razorpay-stub.mjs`, which stands in for
+  api.razorpay.com at the HTTP boundary (test harness only, nothing in the app). It covers card
+  mandate authorisation (active and bank-rejected), autopay switching on, invoices auto-confirmed at
+  billing, a charge declined via signed `payment.failed` webhook (reason, retry, customer notice,
+  invoice not paid), retry → pending → paid via signed `payment.captured`, and customer revocation.
+  Start the stub (`node e2e/razorpay-stub.mjs`, port 8199), give the backend
+  `RAZORPAY_BASE_URL=http://127.0.0.1:8199/v1` plus dummy `RAZORPAY_KEY_ID=rzp_test_…`,
+  `RAZORPAY_KEY_SECRET` and `RAZORPAY_WEBHOOK_SECRET`, and pass the same secrets to the tests as
+  `E2E_RAZORPAY_KEY_SECRET` / `E2E_RAZORPAY_WEBHOOK_SECRET` with `E2E_RAZORPAY_STUB_URL`. The
+  hosted Razorpay Checkout widget itself is not exercised; the test sends what it returns, signed
+  as Razorpay signs it.
+
 ```powershell
 # backend (from the integration branch) on the disposable DB, origin allowed for :3100
 $env:DATABASE_URL="postgresql+psycopg://sms:<pw>@127.0.0.1:55432/sms_e2e_frontend"

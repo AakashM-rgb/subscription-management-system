@@ -10,6 +10,7 @@ import { DataTable, FilterSelect, TableToolbar, type ColumnDef } from "@/compone
 import { EmptyState } from "@/components/feedback";
 import { FormDialog } from "@/components/form-dialog";
 import { applyServerErrors, MoneyField, NumberField, SelectField, SwitchField, TextField } from "@/components/form-fields";
+import { RecentlyAdded, useRecentlyAdded } from "@/components/recently-added";
 import { PageBody, PageHeader } from "@/components/page";
 import { Can, useCan } from "@/components/session";
 import { Pill, StatusBadge } from "@/components/status-badge";
@@ -61,7 +62,17 @@ function toValues(plan?: Plan | null): Values {
   };
 }
 
-function PlanFormDialog({ open, onOpenChange, plan }: { open: boolean; onOpenChange: (o: boolean) => void; plan: Plan | null }) {
+function PlanFormDialog({
+  open,
+  onOpenChange,
+  plan,
+  onSaved,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  plan: Plan | null;
+  onSaved?: (saved: Plan) => void;
+}) {
   const taxes = useTaxOptions();
   const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: toValues(plan) });
   useEffect(() => {
@@ -88,7 +99,10 @@ function PlanFormDialog({ open, onOpenChange, plan }: { open: boolean; onOpenCha
     invalidate: ["plans"],
     success: plan ? "Plan updated" : "Plan created",
     toastError: false,
-    onSuccess: () => onOpenChange(false),
+    onSuccess: (saved) => {
+      onOpenChange(false);
+      onSaved?.(saved);
+    },
   });
 
   return (
@@ -148,6 +162,7 @@ function PlanFormDialog({ open, onOpenChange, plan }: { open: boolean; onOpenCha
 
 export default function PlansPage() {
   const list = useListState(["billing_period", "is_active"] as const);
+  const recent = useRecentlyAdded<Plan>();
   const canWrite = useCan("catalog.write");
   const [dialog, setDialog] = useState<{ open: boolean; plan: Plan | null }>({ open: false, plan: null });
   const query = usePaged<Plan>("plans", "/plans", {
@@ -245,6 +260,18 @@ export default function PlansPage() {
           ]}
         />
       </TableToolbar>
+      <RecentlyAdded
+        items={recent.items}
+        onClear={recent.clear}
+        render={(p) => (
+          <>
+            <span className="font-medium">{p.name}</span>
+            <span className="tabular text-muted-foreground">
+              {formatMoney(p.price)} / {BILLING_PERIOD_UNIT[p.billing_period]}
+            </span>
+          </>
+        )}
+      />
       <DataTable
         caption="Plans"
         columns={columns}
@@ -258,7 +285,7 @@ export default function PlansPage() {
         onClearFilters={list.clear}
         empty={<EmptyState icon={Layers} title="No plans yet" description="Create a plan to start selling subscriptions." />}
       />
-      <PlanFormDialog open={dialog.open} onOpenChange={(open) => setDialog((s) => ({ ...s, open }))} plan={dialog.plan} />
+      <PlanFormDialog open={dialog.open} onOpenChange={(open) => setDialog((s) => ({ ...s, open }))} plan={dialog.plan} onSaved={(saved) => (dialog.plan ? recent.replace(saved) : recent.add(saved))} />
     </PageBody>
   );
 }
