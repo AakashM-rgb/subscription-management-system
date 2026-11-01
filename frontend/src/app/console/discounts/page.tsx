@@ -17,6 +17,7 @@ import {
   SwitchField,
   TextField,
 } from "@/components/form-fields";
+import { RecentlyAdded, useRecentlyAdded } from "@/components/recently-added";
 import { PageBody, PageHeader } from "@/components/page";
 import { Can, useCan } from "@/components/session";
 import { StatusBadge } from "@/components/status-badge";
@@ -73,7 +74,17 @@ function toValues(d?: Discount | null): Values {
   };
 }
 
-function DiscountFormDialog({ open, onOpenChange, discount }: { open: boolean; onOpenChange: (o: boolean) => void; discount: Discount | null }) {
+function DiscountFormDialog({
+  open,
+  onOpenChange,
+  discount,
+  onSaved,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  discount: Discount | null;
+  onSaved?: (saved: Discount) => void;
+}) {
   const products = useProductOptions();
   const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: toValues(discount) });
   useEffect(() => {
@@ -103,7 +114,10 @@ function DiscountFormDialog({ open, onOpenChange, discount }: { open: boolean; o
     invalidate: ["discounts"],
     success: discount ? "Discount updated" : "Discount created",
     toastError: false,
-    onSuccess: () => onOpenChange(false),
+    onSuccess: (saved) => {
+      onOpenChange(false);
+      onSaved?.(saved);
+    },
   });
 
   return (
@@ -202,6 +216,7 @@ function describeValue(d: Discount) {
 
 export default function DiscountsPage() {
   const list = useListState(["scope", "is_active"] as const);
+  const recent = useRecentlyAdded<Discount>();
   const canWrite = useCan("discount.write");
   const [dialog, setDialog] = useState<{ open: boolean; discount: Discount | null }>({ open: false, discount: null });
   const query = usePaged<Discount>("discounts", "/discounts", {
@@ -302,6 +317,16 @@ export default function DiscountsPage() {
           ]}
         />
       </TableToolbar>
+      <RecentlyAdded
+        items={recent.items}
+        onClear={recent.clear}
+        render={(d) => (
+          <>
+            <span className="font-medium">{d.name}</span>
+            <span className="text-muted-foreground">{describeValue(d)}</span>
+          </>
+        )}
+      />
       <DataTable
         caption="Discount rules"
         columns={columns}
@@ -315,7 +340,7 @@ export default function DiscountsPage() {
         onClearFilters={list.clear}
         empty={<EmptyState icon={BadgePercent} title="No discount rules" description="Create a rule, for example a volume discount for more seats." />}
       />
-      <DiscountFormDialog open={dialog.open} onOpenChange={(open) => setDialog((s) => ({ ...s, open }))} discount={dialog.discount} />
+      <DiscountFormDialog open={dialog.open} onOpenChange={(open) => setDialog((s) => ({ ...s, open }))} discount={dialog.discount} onSaved={(saved) => (dialog.discount ? recent.replace(saved) : recent.add(saved))} />
     </PageBody>
   );
 }

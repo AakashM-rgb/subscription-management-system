@@ -1,0 +1,125 @@
+import type { Invoice, Mandate, PaymentAttempt, Subscription } from "@/lib/api/types";
+
+/** Test fixtures typed with the domain types, which contract.ts ties to the backend's OpenAPI schemas. */
+
+export function invoice(overrides: Partial<Invoice> = {}): Invoice {
+  return {
+    id: 41,
+    number: "INV/2026/000041",
+    status: "confirmed",
+    payment_state: "unpaid",
+    is_overdue: false,
+    days_overdue: 0,
+    collection_status: "none",
+    subscription: { id: 9, number: "SUB-000009" },
+    customer_id: 7,
+    bill_to_name: "Malabar Foods",
+    period_start: "2026-11-01",
+    period_end: "2026-11-30",
+    invoice_date: "2026-11-01",
+    due_date: "2026-11-01",
+    currency: "INR",
+    amount_total: "3540.00",
+    amount_paid: "0.00",
+    amount_due: "3540.00",
+    bill_to_email: "accounts@malabar.example.com",
+    bill_to_address: null,
+    payment_term_name: "Immediate",
+    discount_name: null,
+    amount_untaxed: "3000.00",
+    amount_discount: "0.00",
+    amount_tax: "540.00",
+    confirmed_at: "2026-11-01T04:00:00Z",
+    paid_at: null,
+    cancelled_at: null,
+    cancel_reason: null,
+    replaces_invoice_id: null,
+    sent_at: null,
+    sent_count: 0,
+    lines: [],
+    payments: [],
+    available_actions: ["print", "send", "record_payment", "cancel"],
+    ...overrides,
+  };
+}
+
+export function attempt(overrides: Partial<PaymentAttempt> = {}): PaymentAttempt {
+  return {
+    id: 1,
+    invoice_id: 41,
+    mandate_id: 3,
+    provider: "razorpay",
+    provider_reference: "pay_TEST1",
+    amount: "3540.00",
+    status: "failed",
+    attempt_number: 1,
+    failure_code: "BAD_REQUEST_ERROR",
+    failure_message: "Insufficient funds",
+    next_retry_at: "2026-11-02T04:00:00Z",
+    created_at: "2026-11-01T04:00:00Z",
+    updated_at: "2026-11-01T04:05:00Z",
+    ...overrides,
+  };
+}
+
+export function mandate(overrides: Partial<Mandate> = {}): Mandate {
+  return {
+    id: 3,
+    customer_id: 7,
+    provider: "razorpay",
+    status: "active",
+    method_type: "card",
+    display_hint: "Visa **** 4242",
+    max_amount: "100000.00",
+    authorized_at: "2026-10-15T09:00:00Z",
+    cancelled_at: null,
+    created_at: "2026-10-15T08:58:00Z",
+    ...overrides,
+  };
+}
+
+export function subscription(overrides: Partial<Subscription> = {}): Subscription {
+  return {
+    id: 9,
+    number: "SUB-000009",
+    status: "active",
+    customer: { id: 7, name: "Malabar Foods", email: "accounts@malabar.example.com" },
+    plan: {
+      id: 2,
+      name: "Business Monthly",
+      price: "1000.00",
+      billing_period: "monthly",
+      min_quantity: 1,
+      auto_close: false,
+      closable: true,
+      pausable: true,
+      renewable: true,
+    },
+    start_date: "2026-10-01",
+    end_date: "2027-09-30",
+    next_invoice_date: "2026-12-01",
+    is_paused: false,
+    is_expired: false,
+    amount_total: "3540.00",
+    created_at: "2026-09-28T10:00:00Z",
+    payment_term: { id: 1, name: "Immediate", due_days: 0 },
+    discount: null,
+    term_periods: 12,
+    quotation_valid_until: null,
+    paused_at: null,
+    confirmed_at: "2026-09-30T10:00:00Z",
+    activated_at: "2026-10-01T00:00:00Z",
+    closed_at: null,
+    close_reason: null,
+    template_id: null,
+    amount_untaxed: "3000.00",
+    amount_discount: "0.00",
+    amount_tax: "540.00",
+    notes: null,
+    auto_collect: true,
+    lines: [],
+    last_invoice: { id: 41, number: "INV/2026/000041", status: "confirmed", amount_total: "3540.00", invoice_date: "2026-11-01" },
+    available_actions: ["pause", "close", "bill_now", "set_discount"],
+    ...overrides,
+  };
+}

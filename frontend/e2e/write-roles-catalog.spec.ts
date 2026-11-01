@@ -88,7 +88,7 @@ test.describe("catalog and customer forms (admin)", () => {
     await dialog.getByLabel(/^Rate/).fill("5");
     await dialog.getByRole("button", { name: "Create tax" }).click();
     await expect(page.getByText("Tax created")).toBeVisible();
-    await expect(page.getByRole("cell", { name: `GST 5% ${id}`, exact: true })).toBeVisible();
+    await expect(page.getByLabel("Added just now")).toContainText(`GST 5% ${id}`);
 
     await page.goto("/console/settings/payment-terms");
     await page.getByRole("button", { name: "New term" }).click();
@@ -97,6 +97,7 @@ test.describe("catalog and customer forms (admin)", () => {
     await dialog.getByLabel(/^Due days/).fill("45");
     await dialog.getByRole("button", { name: "Create term" }).click();
     await expect(page.getByText("Payment term created")).toBeVisible();
+    await expect(page.getByLabel("Added just now")).toContainText(`Net 45 ${id}`);
 
     await page.goto("/console/products");
     await page.getByRole("button", { name: "New product" }).click();
@@ -106,7 +107,8 @@ test.describe("catalog and customer forms (admin)", () => {
     await dialog.getByLabel(/^Cost price/).fill("300");
     await dialog.getByRole("button", { name: "Create product" }).click();
     await expect(page.getByText("Product created")).toBeVisible();
-    await page.getByRole("link", { name: `Helpdesk ${id}` }).click();
+    // A new product opens straight away so variants can be added.
+    await expect(page).toHaveURL(/\/console\/products\/\d+$/);
     await expect(page.getByRole("heading", { level: 1, name: `Helpdesk ${id}` })).toBeVisible();
     await page.getByRole("button", { name: "Add variant" }).click();
     dialog = page.getByRole("dialog");
@@ -129,7 +131,7 @@ test.describe("catalog and customer forms (admin)", () => {
     await dialog.getByLabel("Can be paused").click();
     await dialog.getByRole("button", { name: "Create plan" }).click();
     await expect(page.getByText("Plan created")).toBeVisible();
-    await expect(page.getByText(`Team Yearly ${id}`)).toBeVisible();
+    await expect(page.getByLabel("Added just now")).toContainText(`Team Yearly ${id}`);
 
     await page.goto("/console/discounts");
     await page.getByRole("button", { name: "New discount" }).click();
@@ -162,8 +164,8 @@ test.describe("catalog and customer forms (admin)", () => {
     await dialog.getByLabel("Company").fill("Kochi Traders");
     await dialog.getByRole("button", { name: "Create customer" }).click();
     await expect(page.getByText("Customer created")).toBeVisible();
-
-    await page.getByRole("cell", { name: new RegExp(`Anil Kumar ${id}`) }).click();
+    // A new customer opens straight away.
+    await expect(page).toHaveURL(/\/console\/customers\/\d+$/);
     await expect(page.getByRole("heading", { level: 1, name: `Anil Kumar ${id}` })).toBeVisible();
     await page.getByRole("button", { name: "Edit" }).click();
     dialog = page.getByRole("dialog");

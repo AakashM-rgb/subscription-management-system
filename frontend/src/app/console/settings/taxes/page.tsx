@@ -10,6 +10,7 @@ import { DataTable, type ColumnDef } from "@/components/data-table";
 import { EmptyState } from "@/components/feedback";
 import { FormDialog } from "@/components/form-dialog";
 import { applyServerErrors, SwitchField, TextField } from "@/components/form-fields";
+import { RecentlyAdded, useRecentlyAdded } from "@/components/recently-added";
 import { PageBody, PageHeader } from "@/components/page";
 import { Can, useCan } from "@/components/session";
 import { StatusBadge } from "@/components/status-badge";
@@ -29,7 +30,17 @@ const schema = z.object({
 });
 type Values = z.infer<typeof schema>;
 
-function TaxDialog({ open, onOpenChange, tax }: { open: boolean; onOpenChange: (o: boolean) => void; tax: Tax | null }) {
+function TaxDialog({
+  open,
+  onOpenChange,
+  tax,
+  onSaved,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  tax: Tax | null;
+  onSaved?: (saved: Tax) => void;
+}) {
   const values = (t: Tax | null): Values => ({ name: t?.name ?? "", rate: t ? String(Number(t.rate)) : "", is_active: t?.is_active ?? true });
   const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: values(tax) });
   useEffect(() => {
@@ -43,7 +54,10 @@ function TaxDialog({ open, onOpenChange, tax }: { open: boolean; onOpenChange: (
     invalidate: ["taxes"],
     success: tax ? "Tax updated" : "Tax created",
     toastError: false,
-    onSuccess: () => onOpenChange(false),
+    onSuccess: (saved) => {
+      onOpenChange(false);
+      onSaved?.(saved);
+    },
   });
   return (
     <FormDialog
@@ -66,6 +80,7 @@ function TaxDialog({ open, onOpenChange, tax }: { open: boolean; onOpenChange: (
 
 export default function TaxesPage() {
   const list = useListState();
+  const recent = useRecentlyAdded<Tax>();
   const canWrite = useCan("tax.write");
   const [dialog, setDialog] = useState<{ open: boolean; tax: Tax | null }>({ open: false, tax: null });
   const query = usePaged<Tax>("taxes", "/taxes", { page: list.page, page_size: list.pageSize });
@@ -100,6 +115,16 @@ export default function TaxesPage() {
           </Can>
         }
       />
+      <RecentlyAdded
+        items={recent.items}
+        onClear={recent.clear}
+        render={(t) => (
+          <>
+            <span className="font-medium">{t.name}</span>
+            <span className="tabular text-muted-foreground">{formatRate(t.rate)}</span>
+          </>
+        )}
+      />
       <DataTable
         caption="Taxes"
         columns={columns}
@@ -111,7 +136,7 @@ export default function TaxesPage() {
         pagination={{ page: list.page, pageSize: list.pageSize, onPageChange: list.setPage }}
         empty={<EmptyState icon={Percent} title="No taxes configured" />}
       />
-      <TaxDialog open={dialog.open} onOpenChange={(open) => setDialog((s) => ({ ...s, open }))} tax={dialog.tax} />
+      <TaxDialog open={dialog.open} onOpenChange={(open) => setDialog((s) => ({ ...s, open }))} tax={dialog.tax} onSaved={(saved) => (dialog.tax ? recent.replace(saved) : recent.add(saved))} />
     </PageBody>
   );
 }
