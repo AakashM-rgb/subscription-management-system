@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 
 import {
   AlertDialog,
@@ -45,9 +45,11 @@ export function ConfirmDialog({
   onConfirm: () => Promise<unknown> | void;
 }) {
   const [pending, setPending] = useState(false);
+  const inFlight = useRef(false);
 
   async function handleConfirm() {
-    if (pending) return;
+    if (inFlight.current) return;
+    inFlight.current = true;
     setPending(true);
     try {
       await onConfirm();
@@ -55,6 +57,7 @@ export function ConfirmDialog({
     } catch {
       // The mutation already reported the error; keep the dialog open so the user can retry.
     } finally {
+      inFlight.current = false;
       setPending(false);
     }
   }

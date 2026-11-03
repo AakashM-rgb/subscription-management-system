@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import type { FormEventHandler, ReactNode } from "react";
+import type { FormEvent, ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FieldGroup } from "@/components/ui/field";
+import { useSingleFlight } from "@/lib/use-single-flight";
 import { cn } from "@/lib/utils";
 
 export function FormDialog({
@@ -30,16 +31,17 @@ export function FormDialog({
   onOpenChange: (open: boolean) => void;
   title: string;
   description?: ReactNode;
-  onSubmit: FormEventHandler<HTMLFormElement>;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => unknown;
   pending: boolean;
   submitLabel: string;
   children: ReactNode;
   wide?: boolean;
 }) {
+  const singleFlight = useSingleFlight();
   return (
     <Dialog open={open} onOpenChange={(next) => (!pending ? onOpenChange(next) : undefined)}>
       <DialogContent className={cn("max-h-[92dvh] overflow-y-auto", wide ? "sm:max-w-2xl" : "sm:max-w-lg")}>
-        <form onSubmit={onSubmit} noValidate className="space-y-6">
+        <form onSubmit={singleFlight(onSubmit)} noValidate className="space-y-6">
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
             {description ? <DialogDescription>{description}</DialogDescription> : null}

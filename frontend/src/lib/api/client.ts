@@ -38,6 +38,15 @@ export class ApiError extends Error {
     return this.status === 404 && this.code === "NOT_FOUND" && this.message === "Not Found";
   }
 
+  /** A 422 about a path parameter, e.g. /invoices/abc: the link does not point at any record. */
+  get isInvalidPath(): boolean {
+    return (
+      this.status === 422 &&
+      Array.isArray(this.details) &&
+      (this.details as FieldIssue[]).some((issue) => Array.isArray(issue?.loc) && issue.loc[0] === "path")
+    );
+  }
+
   get isNetwork(): boolean {
     return this.status === 0;
   }

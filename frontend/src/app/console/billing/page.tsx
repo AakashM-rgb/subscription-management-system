@@ -79,7 +79,7 @@ export default function BillingRunsPage() {
         title="Run billing now?"
         description={
           <p>
-            Draft invoices are created for every active subscription with a billing date on or before the chosen date. It is safe to run
+            Invoices are created for every active subscription with a billing date on or before the chosen date. Invoices of subscriptions with an active autopay mandate are confirmed automatically and collected through the saved payment method; all others stay as drafts for review. It is safe to run
             again: subscriptions that were already billed for a period are skipped.
           </p>
         }

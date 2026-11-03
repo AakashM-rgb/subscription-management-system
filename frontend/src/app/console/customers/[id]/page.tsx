@@ -112,9 +112,9 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
           />
         </Section>
 
-        <div className="lg:col-span-2">
+        <div className="min-w-0 lg:col-span-2">
           <Tabs defaultValue="subscriptions" className="gap-4">
-            <TabsList>
+            <TabsList className="max-w-full justify-start overflow-x-auto">
               <TabsTrigger value="subscriptions">Subscriptions</TabsTrigger>
               <TabsTrigger value="invoices">Invoices</TabsTrigger>
               <TabsTrigger value="payments">Payments</TabsTrigger>

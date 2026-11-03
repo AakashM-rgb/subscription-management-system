@@ -94,6 +94,11 @@ export function ErrorState({
       />
     );
   }
+  if (error instanceof ApiError && error.isInvalidPath) {
+    return (
+      <StatePanel icon={SearchX} compact={compact} className={className} title="Not found" description="This link doesn't point to a record that exists." />
+    );
+  }
   if (error instanceof ApiError && error.status === 404) {
     return (
       <StatePanel icon={SearchX} compact={compact} className={className} title="Not found" description={error.message} />

@@ -16,7 +16,10 @@ import { formatDateTime, formatMoney } from "@/lib/format";
 
 export default function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const query = useResource<Invoice>(["invoices", "detail", id], `/invoices/${id}`);
+  // The provider confirms an automatic charge later (webhook): keep the page current while one is pending.
+  const query = useResource<Invoice>(["invoices", "detail", id], `/invoices/${id}`, undefined, {
+    refetchInterval: (q) => (q.state.data?.collection_status === "pending" ? 8_000 : false),
+  });
   if (query.isPending) return <PageSkeleton />;
   if (query.error) return <ErrorState error={query.error} onRetry={() => query.refetch()} />;
   const inv = query.data;
@@ -36,7 +39,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
         description={
           <>
             {inv.bill_to_name} · Subscription{" "}
-            <TextLink href={`/console/subscriptions/${inv.subscription.id}`} className="font-normal">
+            <TextLink href={`/console/subscriptions/${inv.subscription.id}`} className="font-normal underline">
               {inv.subscription.number}
             </TextLink>
           </>
@@ -65,7 +68,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
         ) : null}
         {inv.replaces_invoice_id ? (
           <p className="text-xs text-muted-foreground">
-            Re-issue of <TextLink href={`/console/invoices/${inv.replaces_invoice_id}`}>invoice #{inv.replaces_invoice_id}</TextLink>
+            Re-issue of <TextLink href={`/console/invoices/${inv.replaces_invoice_id}`} className="underline">invoice #{inv.replaces_invoice_id}</TextLink>
           </p>
         ) : null}
       </div>

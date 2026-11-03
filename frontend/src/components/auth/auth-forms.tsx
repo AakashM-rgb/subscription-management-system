@@ -17,6 +17,7 @@ import { api, ApiError, errorMessage } from "@/lib/api/client";
 import type { Body } from "@/lib/api/contract";
 import type { Me } from "@/lib/api/types";
 import { safeNextPath } from "@/lib/permissions";
+import { useSingleFlight } from "@/lib/use-single-flight";
 import { emailSchema, passwordSchema } from "@/lib/validation";
 
 function AuthHeading({ title, description }: { title: string; description: React.ReactNode }) {
@@ -45,6 +46,7 @@ const loginSchema = z.object({
 });
 
 export function LoginForm() {
+  const singleFlight = useSingleFlight();
   const router = useRouter();
   const params = useSearchParams();
   const [formError, setFormError] = useState<string | null>(null);
@@ -91,7 +93,7 @@ export function LoginForm() {
           <AlertDescription>{formError}</AlertDescription>
         </Alert>
       ) : null}
-      <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
+      <form onSubmit={singleFlight(form.handleSubmit(onSubmit))} noValidate>
         <FieldGroup>
           <TextField control={form.control} name="email" label="Email" type="email" autoComplete="email" required />
           <div className="space-y-1">
@@ -134,6 +136,7 @@ const signupSchema = z
   .refine((v) => v.password === v.confirm, { message: "Passwords do not match", path: ["confirm"] });
 
 export function SignupForm() {
+  const singleFlight = useSingleFlight();
   const router = useRouter();
   const form = useForm<z.infer<typeof signupSchema>>({
     resolver: zodResolver(signupSchema),
@@ -161,7 +164,7 @@ export function SignupForm() {
         title="Create your account"
         description="See and manage your subscriptions and invoices without emailing anyone."
       />
-      <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
+      <form onSubmit={singleFlight(form.handleSubmit(onSubmit))} noValidate>
         <FieldGroup>
           <TextField control={form.control} name="full_name" label="Full name" autoComplete="name" required />
           <TextField control={form.control} name="email" label="Email" type="email" autoComplete="email" required />
@@ -202,6 +205,7 @@ export function SignupForm() {
 const forgotSchema = z.object({ email: emailSchema });
 
 export function ForgotPasswordForm() {
+  const singleFlight = useSingleFlight();
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [unavailable, setUnavailable] = useState(false);
   const form = useForm<z.infer<typeof forgotSchema>>({
@@ -253,7 +257,7 @@ export function ForgotPasswordForm() {
           </AlertDescription>
         </Alert>
       ) : null}
-      <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
+      <form onSubmit={singleFlight(form.handleSubmit(onSubmit))} noValidate>
         <FieldGroup>
           <TextField control={form.control} name="email" label="Email" type="email" autoComplete="email" required />
           <SubmitButton pending={form.formState.isSubmitting}>Send reset link</SubmitButton>
@@ -275,6 +279,7 @@ const newPasswordSchema = z
   .refine((v) => v.password === v.confirm, { message: "Passwords do not match", path: ["confirm"] });
 
 export function SetPasswordForm({ mode }: { mode: "reset" | "invite" }) {
+  const singleFlight = useSingleFlight();
   const router = useRouter();
   const token = useSearchParams().get("token") ?? "";
   const form = useForm<z.infer<typeof newPasswordSchema>>({
@@ -337,7 +342,7 @@ export function SetPasswordForm({ mode }: { mode: "reset" | "invite" }) {
           <AlertDescription>{formError}</AlertDescription>
         </Alert>
       ) : null}
-      <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
+      <form onSubmit={singleFlight(form.handleSubmit(onSubmit))} noValidate>
         <FieldGroup>
           <div className="space-y-2">
             <TextField

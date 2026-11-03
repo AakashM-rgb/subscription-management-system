@@ -15,17 +15,20 @@ export function me(role: Role = "admin"): Me {
 /** Renders with the app's real providers (query client, session, toasts). */
 export function renderWithApp(ui: ReactElement, role: Role = "admin") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  return render(
+  const wrap = (node: ReactElement) => (
     <QueryClientProvider client={client}>
       <TooltipProvider>
-        <SessionProvider user={me(role)}>{ui}</SessionProvider>
+        <SessionProvider user={me(role)}>{node}</SessionProvider>
         <Toaster />
       </TooltipProvider>
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
+  const result = render(wrap(ui));
+  // Re-render with new props while keeping the same providers and query cache.
+  return { ...result, rerenderApp: (node: ReactElement) => result.rerender(wrap(node)) };
 }
 
-type Route = { method?: string; path: string | RegExp; status?: number; body?: unknown };
+type Route = { method?: string; path: string | RegExp; status?: number; body?: unknown; delayMs?: number };
 
 /**
  * Stubs fetch with responses keyed by method + path (after /api/v1). Unmatched calls fail the test,
@@ -42,6 +45,7 @@ export function mockApi(routes: Route[]) {
       (r) => (r.method ?? "GET") === method && (typeof r.path === "string" ? r.path === path : r.path.test(path)),
     );
     if (!route) throw new Error(`Unexpected API call: ${method} ${path}`);
+    if (route.delayMs) await new Promise((resolve) => setTimeout(resolve, route.delayMs));
     const status = route.status ?? 200;
     return new Response(status === 204 ? null : JSON.stringify(route.body ?? {}), { status, headers: { "Content-Type": "application/json" } });
   });

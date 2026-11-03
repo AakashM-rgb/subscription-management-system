@@ -41,6 +41,7 @@ import type {
 } from "@/lib/api/types";
 import { BILLING_PERIOD_UNIT, formatMoney, formatRate, todayISO } from "@/lib/format";
 import { dateString, idString, intString, optionalMoneyString } from "@/lib/validation";
+import { useSingleFlight } from "@/lib/use-single-flight";
 
 const lineSchema = z.object({
   product_id: idString("product"),
@@ -122,6 +123,7 @@ export function SubscriptionForm({
   const editing = Boolean(subscription);
   const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: valuesFrom(subscription, initialCustomerId) });
   const lines = useFieldArray({ control: form.control, name: "lines" });
+  const singleFlight = useSingleFlight();
 
   const plans = usePlanOptions();
   const terms = usePaymentTermOptions();
@@ -235,7 +237,7 @@ export function SubscriptionForm({
   const unit = plan ? BILLING_PERIOD_UNIT[plan.billing_period] : "period";
 
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="grid gap-6 xl:grid-cols-3">
+    <form onSubmit={singleFlight(form.handleSubmit(onSubmit))} noValidate className="grid gap-6 xl:grid-cols-3">
       <div className="space-y-6 xl:col-span-2">
         <Section title="Customer & plan">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -433,6 +435,7 @@ function PricePreview({
           </div>
         ) : preview ? (
           <>
+            <div className="relative overflow-x-auto focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none" tabIndex={0} role="region" aria-label="Price breakdown">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -458,6 +461,7 @@ function PricePreview({
                 <TotalsRows totals={preview} colSpan={1} />
               </TableFooter>
             </Table>
+            </div>
             {preview.discount_skipped_reason ? (
               <p className="flex items-start gap-2 border-t px-5 py-3 text-xs text-amber-800">
                 <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden />
