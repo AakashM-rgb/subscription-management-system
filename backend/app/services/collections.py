@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.errors import AppError, not_found
 from app.models import (
+    AuditEvent,
     Customer,
     Invoice,
     PaymentAttempt,
@@ -210,6 +211,23 @@ def _detach_from_subscriptions(db: Session, mandate: PaymentMandate) -> None:
         sub.auto_collect = False
 
 
+def _last_applied_event_at(db: Session, mandate: PaymentMandate) -> datetime | None:
+    """Provider timestamp of the newest event that changed this mandate, from the audit trail."""
+    stamp = db.scalar(
+        select(AuditEvent.data["event_at"].astext)
+        .where(
+            AuditEvent.entity_type == "customer",
+            AuditEvent.entity_id == mandate.customer_id,
+            AuditEvent.action.like("mandate.%"),
+            AuditEvent.data["mandate_id"].astext == str(mandate.id),
+            AuditEvent.data.has_key("event_at"),
+        )
+        .order_by(AuditEvent.id.desc())
+        .limit(1)
+    )
+    return datetime.fromisoformat(stamp) if stamp else None
+
+
 def apply_mandate_update(
     db: Session,
     mandate: PaymentMandate,
@@ -217,8 +235,19 @@ def apply_mandate_update(
     *,
     actor: User | None = None,
     actor_type: str | None = None,
+    occurred_at: datetime | None = None,
 ) -> bool:
-    """Apply the provider's view of a mandate. Returns True if anything changed."""
+    """Apply the provider's view of a mandate. Returns True if anything changed.
+
+    `occurred_at` is when the provider says this happened. Webhooks can arrive late and out of
+    order (a delayed "confirmed" after "paused"), so an event older than the last one applied to
+    this mandate is ignored instead of undoing newer state.
+    """
+    last = _last_applied_event_at(db, mandate) if occurred_at is not None else None
+    if occurred_at is not None:
+        if last is not None and occurred_at < last:
+            log.info("ignoring stale event for mandate %s (%s < %s)", mandate.id, occurred_at, last)
+            return False
     changed = False
     if update.provider_mandate_id and update.provider_mandate_id != mandate.provider_mandate_id:
         owner = db.scalar(
@@ -264,9 +293,25 @@ def apply_mandate_update(
                 "mandate_id": mandate.id,
                 "from": previous,
                 "reason": update.failure_message,
+                **({"event_at": occurred_at.isoformat()} if occurred_at else {}),
             },
         )
         changed = True
+    elif occurred_at is not None and (last is None or occurred_at > last):
+        # Same state, but newer news: advance the marker so an older event delivered later
+        # (e.g. a paused->confirmed history arriving confirmed, confirmed, paused) stays stale.
+        audit.record(
+            db,
+            action="mandate.observed",
+            entity_type="customer",
+            entity_id=mandate.customer_id,
+            actor_type=actor_type,
+            data={
+                "mandate_id": mandate.id,
+                "status": mandate.status,
+                "event_at": occurred_at.isoformat(),
+            },
+        )
     db.flush()
     return changed
 
@@ -764,6 +809,7 @@ def handle_event(db: Session, event: ProviderEvent) -> str:
                 failure_message=ev.failure_message,
             ),
             actor_type="provider",
+            occurred_at=ev.occurred_at,
         )
         return "processed" if changed else "ignored"
 

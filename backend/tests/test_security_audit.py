@@ -4,6 +4,8 @@ HTTP transport; nothing here can fake a payment in production code."""
 
 import hashlib
 import hmac
+import itertools
+import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal as D
 
@@ -437,3 +439,78 @@ def test_expired_or_revoked_mandate_is_never_charged_by_retries(db, fake) -> Non
     assert collections.retry_failed(db, first.next_retry_at + timedelta(seconds=1)) == 0
     assert len(attempts_of(db, invoice)) == 1
     assert db.get(Invoice, invoice.id).status == "confirmed"
+
+
+# =========================================================== out-of-order mandate events
+
+
+def token_event(db, kind: str, token: str, at: int) -> ProviderEvent:
+    body = {
+        "entity": "event",
+        "event": kind,
+        "contains": ["token"],
+        "payload": {"token": {"entity": {"id": token, "method": "upi"}}},
+        "created_at": at,
+    }
+    ev = ProviderEvent(
+        provider="razorpay", event_id=f"sha256:{token}{kind}{at}", event_type=kind, payload=body
+    )
+    db.add(ev)
+    db.flush()
+    return ev
+
+
+def pending_mandate(db) -> PaymentMandate:
+    mandate = PaymentMandate(
+        customer_id=f.customer(db).id,
+        provider="razorpay",
+        provider_customer_id="cust_1",
+        provider_mandate_id=f"token_{uuid.uuid4().hex[:8]}",
+        status="pending",
+    )
+    db.add(mandate)
+    db.flush()
+    return mandate
+
+
+@pytest.mark.parametrize(
+    "history, true_state",
+    [
+        ([("token.confirmed", 100), ("token.paused", 200)], "paused"),
+        ([("token.confirmed", 100), ("token.cancelled", 200)], "cancelled"),
+        ([("token.confirmed", 100), ("token.paused", 200), ("token.cancelled", 300)], "cancelled"),
+        ([("token.confirmed", 100), ("token.paused", 200), ("token.confirmed", 300)], "active"),
+    ],
+)
+def test_every_delivery_order_ends_in_the_providers_true_state(db, rzp, history, true_state):
+    for order in itertools.permutations(history):
+        mandate = pending_mandate(db)
+        for kind, at in order:
+            collections.handle_event(db, token_event(db, kind, mandate.provider_mandate_id, at))
+        assert mandate.status == true_state, f"delivered {[k for k, _ in order]}"
+
+
+def test_a_stale_event_is_ignored_not_failed(db, rzp) -> None:
+    mandate = pending_mandate(db)
+    collections.handle_event(db, token_event(db, "token.paused", mandate.provider_mandate_id, 200))
+    stale = token_event(db, "token.confirmed", mandate.provider_mandate_id, 100)
+    assert collections.handle_event(db, stale) == "ignored"  # no retry storm
+    assert mandate.status == "paused"
+
+
+def test_events_without_a_timestamp_keep_the_old_behaviour(db, fake) -> None:
+    """Providers/tests that send no timestamp are never treated as stale."""
+    from tests.test_collections import event
+
+    mandate = PaymentMandate(
+        customer_id=f.customer(db).id,
+        provider="fakepay",
+        provider_customer_id="c",
+        provider_mandate_id="tok_nots",
+        status="pending",
+    )
+    db.add(mandate)
+    db.flush()
+    collections.handle_event(db, event(db, "mandate_paused", provider_mandate_id="tok_nots"))
+    collections.handle_event(db, event(db, "mandate_active", provider_mandate_id="tok_nots"))
+    assert mandate.status == "active"
