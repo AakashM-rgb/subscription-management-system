@@ -1,0 +1,88 @@
+diff --git a/backend/app/routers/auth.py b/backend/app/routers/auth.py
+index f93c632..5d8007b 100644
+--- a/backend/app/routers/auth.py
++++ b/backend/app/routers/auth.py
+@@ -1,7 +1,7 @@
+ from datetime import UTC, datetime, timedelta
+ 
+ from fastapi import APIRouter, Request, Response
+-from sqlalchemy import func, select
++from sqlalchemy import func, select, text
+ 
+ from app.config import get_settings
+ from app.deps import DB, CurrentUser
+@@ -23,7 +23,10 @@ router = APIRouter(prefix="/auth", tags=["auth"])
+ # Verifying against a real hash for unknown emails keeps response timing uniform.
+ _DUMMY_HASH = hash_password("Dummy-password-1")
+ LOGIN_WINDOW = timedelta(minutes=15)
+-MAX_FAILED_LOGINS = 5
++MAX_FAILED_LOGINS = 5  # per (email, client address): an attacker only locks their own address
++MAX_FAILED_PER_ADDRESS = 30  # per client address across all emails: credential stuffing
++MAX_FAILED_PER_EMAIL = 50  # per email across all addresses: distributed guessing
++KNOWN_ADDRESS_WINDOW = timedelta(days=30)
+ MAX_RESET_EMAILS_PER_HOUR = 3
+ 
+ 
+@@ -79,23 +82,52 @@ def signup(body: SignupIn, response: Response, db: DB) -> MeOut:
+ @router.post("/login", response_model=MeOut)
+ def login(body: LoginIn, request: Request, response: Response, db: DB) -> MeOut:
+     email_lower = body.email.lower()
+-    since = datetime.now(UTC) - LOGIN_WINDOW
+-    failures = db.scalar(
+-        select(func.count())
+-        .select_from(LoginAttempt)
+-        .where(
+-            LoginAttempt.email == email_lower,
+-            LoginAttempt.succeeded.is_(False),
+-            LoginAttempt.created_at >= since,
++    address = _client_ip(request) or "unknown"
++    now = datetime.now(UTC)
++    since = now - LOGIN_WINDOW
++    # Serialise attempts per email for the rest of this transaction, so "count failures, then
++    # record this attempt" cannot be raced by parallel requests.
++    db.execute(
++        text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
++        {"key": f"login:{email_lower}"},
++    )
++
++    def failures(*conds) -> int:
++        return db.scalar(
++            select(func.count())
++            .select_from(LoginAttempt)
++            .where(LoginAttempt.succeeded.is_(False), LoginAttempt.created_at >= since, *conds)
++        )
++
++    known_address = (
++        db.scalar(
++            select(LoginAttempt.id)
++            .where(
++                LoginAttempt.email == email_lower,
++                LoginAttempt.ip_address == address,
++                LoginAttempt.succeeded.is_(True),
++                LoginAttempt.created_at >= now - KNOWN_ADDRESS_WINDOW,
++            )
++            .limit(1)
++        )
++        is not None
++    )
++    blocked = (
++        failures(LoginAttempt.email == email_lower, LoginAttempt.ip_address == address)
++        >= MAX_FAILED_LOGINS
++        or failures(LoginAttempt.ip_address == address) >= MAX_FAILED_PER_ADDRESS
++        or (
++            not known_address  # a distributed attack must not lock the owner out of their device
++            and failures(LoginAttempt.email == email_lower) >= MAX_FAILED_PER_EMAIL
+         )
+     )
+-    if failures >= MAX_FAILED_LOGINS:
++    if blocked:
+         raise AppError(429, "RATE_LIMITED", "Too many failed sign-in attempts; try again later")
+ 
+     user = db.scalar(select(User).where(func.lower(User.email) == email_lower))
+     valid = verify_password(body.password, user.password_hash if user else _DUMMY_HASH)
+     ok = bool(user and valid and user.is_active)
+-    db.add(LoginAttempt(email=email_lower, ip_address=_client_ip(request), succeeded=ok))
++    db.add(LoginAttempt(email=email_lower, ip_address=address, succeeded=ok))
+     db.commit()
+     if not ok:
+         raise AppError(401, "INVALID_CREDENTIALS", "Invalid email or password")

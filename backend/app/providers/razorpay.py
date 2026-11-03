@@ -74,6 +74,10 @@ def _notes(metadata: dict) -> dict:
     return {str(k)[:256]: str(v)[:256] for k, v in list(metadata.items())[:15]}
 
 
+def _is_duplicate(exc: ProviderError) -> bool:
+    return exc.outcome_unknown is False and "duplicate" in exc.message.lower()
+
+
 def _as_dict(notes: object) -> dict:
     return notes if isinstance(notes, dict) else {}  # empty notes arrive as []
 
@@ -268,17 +272,30 @@ class RazorpayAdapter:
         if not customer.phone:
             raise ProviderError("Recurring charges need the customer's phone", retryable=False)
         paise = to_paise(amount)
-        order = self._call(
-            "POST",
-            "/orders",
-            {
-                "amount": paise,
-                "currency": currency,
-                "payment_capture": True,
-                "receipt": idempotency_key[:40],
-                "notes": _notes(metadata),
-            },
-        )
+        receipt = idempotency_key[:40]
+        try:
+            order = self._call(
+                "POST",
+                "/orders",
+                {
+                    "amount": paise,
+                    "currency": currency,
+                    "payment_capture": True,
+                    "receipt": receipt,
+                    "notes": _notes(metadata),
+                },
+            )
+        except ProviderError as exc:
+            # Razorpay treats `receipt` as an idempotency key and rejects a repeat ("Duplicate
+            # request", 400). That happens when an earlier call for this very attempt reached
+            # Razorpay but our database commit was lost. Adopt that order instead of failing, so
+            # the original charge is settled by the webhook or reconciliation, never repeated.
+            existing = self._order_by_receipt(receipt, paise) if _is_duplicate(exc) else None
+            if existing is None:
+                raise
+            return ChargeResult(
+                status="processing", provider_reference=existing["id"], amount=amount
+            )
         try:
             res = self._call(
                 "POST",
@@ -306,6 +323,12 @@ class RazorpayAdapter:
             provider_payment_id=res.get("razorpay_payment_id"),
             amount=amount,
         )
+
+    def _order_by_receipt(self, receipt: str, paise: int) -> dict | None:
+        """The order we created for this receipt, only if it matches the amount we expect."""
+        items = self._call("GET", f"/orders?receipt={receipt}&count=2").get("items", [])
+        matches = [o for o in items if o.get("receipt") == receipt and o.get("amount") == paise]
+        return matches[0] if len(matches) == 1 else None
 
     def fetch_charge(self, provider_reference: str) -> ChargeResult:
         payments = self._call("GET", f"/orders/{provider_reference}/payments").get("items", [])

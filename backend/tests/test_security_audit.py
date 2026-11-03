@@ -4,6 +4,8 @@ HTTP transport; nothing here can fake a payment in production code."""
 
 import hashlib
 import hmac
+import itertools
+import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal as D
 
@@ -437,3 +439,281 @@ def test_expired_or_revoked_mandate_is_never_charged_by_retries(db, fake) -> Non
     assert collections.retry_failed(db, first.next_retry_at + timedelta(seconds=1)) == 0
     assert len(attempts_of(db, invoice)) == 1
     assert db.get(Invoice, invoice.id).status == "confirmed"
+
+
+# =========================================================== out-of-order mandate events
+
+
+def token_event(db, kind: str, token: str, at: int) -> ProviderEvent:
+    body = {
+        "entity": "event",
+        "event": kind,
+        "contains": ["token"],
+        "payload": {"token": {"entity": {"id": token, "method": "upi"}}},
+        "created_at": at,
+    }
+    ev = ProviderEvent(
+        provider="razorpay", event_id=f"sha256:{token}{kind}{at}", event_type=kind, payload=body
+    )
+    db.add(ev)
+    db.flush()
+    return ev
+
+
+def pending_mandate(db) -> PaymentMandate:
+    mandate = PaymentMandate(
+        customer_id=f.customer(db).id,
+        provider="razorpay",
+        provider_customer_id="cust_1",
+        provider_mandate_id=f"token_{uuid.uuid4().hex[:8]}",
+        status="pending",
+    )
+    db.add(mandate)
+    db.flush()
+    return mandate
+
+
+@pytest.mark.parametrize(
+    "history, true_state",
+    [
+        ([("token.confirmed", 100), ("token.paused", 200)], "paused"),
+        ([("token.confirmed", 100), ("token.cancelled", 200)], "cancelled"),
+        ([("token.confirmed", 100), ("token.paused", 200), ("token.cancelled", 300)], "cancelled"),
+        ([("token.confirmed", 100), ("token.paused", 200), ("token.confirmed", 300)], "active"),
+    ],
+)
+def test_every_delivery_order_ends_in_the_providers_true_state(db, rzp, history, true_state):
+    for order in itertools.permutations(history):
+        mandate = pending_mandate(db)
+        for kind, at in order:
+            collections.handle_event(db, token_event(db, kind, mandate.provider_mandate_id, at))
+        assert mandate.status == true_state, f"delivered {[k for k, _ in order]}"
+
+
+def test_a_stale_event_is_ignored_not_failed(db, rzp) -> None:
+    mandate = pending_mandate(db)
+    collections.handle_event(db, token_event(db, "token.paused", mandate.provider_mandate_id, 200))
+    stale = token_event(db, "token.confirmed", mandate.provider_mandate_id, 100)
+    assert collections.handle_event(db, stale) == "ignored"  # no retry storm
+    assert mandate.status == "paused"
+
+
+def test_events_without_a_timestamp_keep_the_old_behaviour(db, fake) -> None:
+    """Providers/tests that send no timestamp are never treated as stale."""
+    from tests.test_collections import event
+
+    mandate = PaymentMandate(
+        customer_id=f.customer(db).id,
+        provider="fakepay",
+        provider_customer_id="c",
+        provider_mandate_id="tok_nots",
+        status="pending",
+    )
+    db.add(mandate)
+    db.flush()
+    collections.handle_event(db, event(db, "mandate_paused", provider_mandate_id="tok_nots"))
+    collections.handle_event(db, event(db, "mandate_active", provider_mandate_id="tok_nots"))
+    assert mandate.status == "active"
+
+
+# ======================================================= lost commit after charging
+
+
+def duplicate_receipt(stub: Stub, receipt: str, existing_amount: int = 118000):
+    dup = {
+        "error": {
+            "code": "BAD_REQUEST_ERROR",
+            "description": "Duplicate request. This request has already been processed.",
+        }
+    }
+    stub.routes[("POST", "/v1/orders")] = (400, dup)
+    stub.routes[("GET", "/v1/orders")] = (
+        200,
+        {
+            "entity": "collection",
+            "items": [{"id": "order_first", "receipt": receipt, "amount": existing_amount}],
+        },
+    )
+    stub.routes[("POST", "/v1/payments/create/recurring")] = (200, {"razorpay_payment_id": "pay_x"})
+
+
+def test_duplicate_receipt_adopts_the_existing_order_instead_of_charging_again(db, rzp) -> None:
+    """The DB commit was lost after Razorpay charged; the retry reuses the same receipt."""
+    invoice = razorpay_autopay_invoice(db)
+    duplicate_receipt(rzp, f"inv{invoice.id}-a1")
+    attempt = collections.collect_invoice(db, invoice.id, NOW)
+    assert (attempt.status, attempt.provider_reference) == ("processing", "order_first")
+    assert rzp.count("POST", "/v1/payments/create/recurring") == 0  # no second charge
+    # The first charge's capture then settles it exactly once.
+    rzp.routes[("GET", "/v1/orders/order_first/payments")] = (
+        200,
+        {
+            "items": [
+                {
+                    "id": "pay_first",
+                    "order_id": "order_first",
+                    "status": "captured",
+                    "amount": 118000,
+                    "currency": "INR",
+                    "method": "card",
+                }
+            ]
+        },
+    )
+    collections.reconcile_pending(db, NOW + timedelta(hours=1))
+    db.refresh(invoice)
+    assert (invoice.status, attempt.status) == ("paid", "succeeded")
+    assert db.scalar(select(func.count()).where(Payment.invoice_id == invoice.id)) == 1
+
+
+def test_duplicate_receipt_with_a_different_amount_is_not_adopted(db, rzp) -> None:
+    invoice = razorpay_autopay_invoice(db)
+    duplicate_receipt(rzp, f"inv{invoice.id}-a1", existing_amount=5000)
+    attempt = collections.collect_invoice(db, invoice.id, NOW)
+    assert attempt.status == "failed"  # surfaced, never silently matched to a wrong order
+    assert rzp.count("POST", "/v1/payments/create/recurring") == 0
+
+
+# ===================================================== concurrency & rollback
+# Real, separately committed connections: the guarantees come from row locks and constraints.
+
+
+def _committed_autopay_invoice(engine) -> int:
+    """Committed rows persist in the shared test DB, so use a DRAFT subscription: billing
+    activates and bills confirmed/active ones, which would change other tests' counts."""
+    from sqlalchemy.orm import Session
+
+    from tests.test_collections import active_mandate
+
+    with Session(engine) as s:
+        cust = f.customer(s)
+        cust.phone = "+919847030009"
+        mandate = active_mandate(s, cust)
+        sub = f.subscription(s, cust, status="draft", auto_collect=True, mandate_id=mandate.id)
+        invoice = f.invoice(s, sub, total="1180.00")
+        s.commit()
+        return invoice.id
+
+
+def test_simultaneous_collect_requests_send_exactly_one_charge(engine, fake) -> None:
+    import threading
+
+    from sqlalchemy.orm import Session
+
+    from app.errors import AppError
+    from tests.test_financial_audit import charges
+
+    invoice_id = _committed_autopay_invoice(engine)
+    barrier = threading.Barrier(4)
+    results: list[str] = []
+
+    def press_collect() -> None:
+        with Session(engine) as s:
+            barrier.wait()
+            try:
+                collections.collect_invoice(s, invoice_id, datetime.now(UTC), manual=True)
+                s.commit()
+                results.append("charged")
+            except AppError:
+                s.rollback()
+                results.append("refused")
+
+    threads = [threading.Thread(target=press_collect) for _ in range(4)]
+    [t.start() for t in threads]
+    [t.join(timeout=30) for t in threads]
+    assert sorted(results) == ["charged", "refused", "refused", "refused"]
+    assert len(charges(fake)) == 1
+    with Session(engine) as s:
+        assert s.scalar(select(func.count()).where(PaymentAttempt.invoice_id == invoice_id)) == 1
+
+
+def test_a_payment_and_its_void_racing_leave_a_consistent_invoice(engine) -> None:
+    import threading
+
+    from sqlalchemy.orm import Session
+
+    from app.errors import AppError
+    from app.services import ledger
+    from app.services.common import business_today
+
+    with Session(engine) as s:
+        invoice = f.invoice(s, f.subscription(s, f.customer(s)), total="1000.00")
+        s.commit()
+        invoice_id = invoice.id
+        first = ledger.record_payment(
+            s,
+            invoice_id=invoice_id,
+            method="cash",
+            amount=D("1000.00"),
+            payment_date=business_today(),
+        )
+        s.commit()
+        first_id = first.id
+    barrier = threading.Barrier(2)
+
+    def void() -> None:
+        with Session(engine) as s:
+            barrier.wait()
+            ledger.void_payment(s, payment_id=first_id, reason="Bounced cheque", actor=None)
+            s.commit()
+
+    def pay_again() -> None:
+        with Session(engine) as s:
+            barrier.wait()
+            try:
+                ledger.record_payment(
+                    s,
+                    invoice_id=invoice_id,
+                    method="upi",
+                    amount=D("1000.00"),
+                    payment_date=business_today(),
+                )
+                s.commit()
+            except AppError:
+                s.rollback()  # lost the race: the invoice was still fully paid
+
+    threads = [threading.Thread(target=void), threading.Thread(target=pay_again)]
+    [t.start() for t in threads]
+    [t.join(timeout=30) for t in threads]
+    with Session(engine) as s:
+        inv = s.get(Invoice, invoice_id)
+        posted = s.scalar(
+            select(func.coalesce(func.sum(Payment.amount), 0)).where(
+                Payment.invoice_id == invoice_id, Payment.status == "posted"
+            )
+        )
+        assert inv.amount_paid == posted  # the ledger always equals the posted payments
+        assert D("0.00") <= inv.amount_paid <= inv.amount_total
+        assert (inv.status == "paid") == (inv.amount_paid == inv.amount_total)
+
+
+def test_a_failure_inside_a_payment_rolls_everything_back(engine, monkeypatch) -> None:
+    """If the audit write fails, neither the payment nor the invoice change may survive."""
+    from sqlalchemy.orm import Session
+
+    from app.services import audit, ledger
+    from app.services.common import business_today
+
+    with Session(engine) as s:
+        invoice = f.invoice(s, f.subscription(s, f.customer(s)), total="500.00")
+        s.commit()
+        invoice_id = invoice.id
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("audit store unavailable")
+
+    monkeypatch.setattr(audit, "record", boom)
+    with Session(engine) as s:
+        with pytest.raises(RuntimeError):
+            ledger.record_payment(
+                s,
+                invoice_id=invoice_id,
+                method="cash",
+                amount=D("500.00"),
+                payment_date=business_today(),
+            )
+        s.rollback()
+    with Session(engine) as s:
+        inv = s.get(Invoice, invoice_id)
+        assert (inv.status, inv.amount_paid) == ("confirmed", D("0.00"))
+        assert s.scalar(select(func.count()).where(Payment.invoice_id == invoice_id)) == 0
