@@ -514,3 +514,61 @@ def test_events_without_a_timestamp_keep_the_old_behaviour(db, fake) -> None:
     collections.handle_event(db, event(db, "mandate_paused", provider_mandate_id="tok_nots"))
     collections.handle_event(db, event(db, "mandate_active", provider_mandate_id="tok_nots"))
     assert mandate.status == "active"
+
+
+# ======================================================= lost commit after charging
+
+
+def duplicate_receipt(stub: Stub, receipt: str, existing_amount: int = 118000):
+    dup = {
+        "error": {
+            "code": "BAD_REQUEST_ERROR",
+            "description": "Duplicate request. This request has already been processed.",
+        }
+    }
+    stub.routes[("POST", "/v1/orders")] = (400, dup)
+    stub.routes[("GET", "/v1/orders")] = (
+        200,
+        {
+            "entity": "collection",
+            "items": [{"id": "order_first", "receipt": receipt, "amount": existing_amount}],
+        },
+    )
+    stub.routes[("POST", "/v1/payments/create/recurring")] = (200, {"razorpay_payment_id": "pay_x"})
+
+
+def test_duplicate_receipt_adopts_the_existing_order_instead_of_charging_again(db, rzp) -> None:
+    """The DB commit was lost after Razorpay charged; the retry reuses the same receipt."""
+    invoice = razorpay_autopay_invoice(db)
+    duplicate_receipt(rzp, f"inv{invoice.id}-a1")
+    attempt = collections.collect_invoice(db, invoice.id, NOW)
+    assert (attempt.status, attempt.provider_reference) == ("processing", "order_first")
+    assert rzp.count("POST", "/v1/payments/create/recurring") == 0  # no second charge
+    # The first charge's capture then settles it exactly once.
+    rzp.routes[("GET", "/v1/orders/order_first/payments")] = (
+        200,
+        {
+            "items": [
+                {
+                    "id": "pay_first",
+                    "order_id": "order_first",
+                    "status": "captured",
+                    "amount": 118000,
+                    "currency": "INR",
+                    "method": "card",
+                }
+            ]
+        },
+    )
+    collections.reconcile_pending(db, NOW + timedelta(hours=1))
+    db.refresh(invoice)
+    assert (invoice.status, attempt.status) == ("paid", "succeeded")
+    assert db.scalar(select(func.count()).where(Payment.invoice_id == invoice.id)) == 1
+
+
+def test_duplicate_receipt_with_a_different_amount_is_not_adopted(db, rzp) -> None:
+    invoice = razorpay_autopay_invoice(db)
+    duplicate_receipt(rzp, f"inv{invoice.id}-a1", existing_amount=5000)
+    attempt = collections.collect_invoice(db, invoice.id, NOW)
+    assert attempt.status == "failed"  # surfaced, never silently matched to a wrong order
+    assert rzp.count("POST", "/v1/payments/create/recurring") == 0
