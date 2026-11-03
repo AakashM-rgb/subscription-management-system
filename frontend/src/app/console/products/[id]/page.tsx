@@ -81,7 +81,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
               description="Offer this product in variants, for example by brand, each with its own extra price."
             />
           ) : (
-            <div className="overflow-x-auto">
+            <div className="relative overflow-x-auto focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none" tabIndex={0} role="region" aria-label="Product variants table">
               <Table>
                 <TableHeader className="bg-muted/50">
                   <TableRow>

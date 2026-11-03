@@ -3,11 +3,16 @@
 import * as React from "react"
 import { cn } from "@/lib/utils"
 
+/**
+ * The container does not scroll. Horizontal scrolling belongs to the caller's wrapper, which is a
+ * keyboard-focusable, named region (a second, inner scroll container cannot be focused, which fails
+ * WCAG 2.1.1 / axe "scrollable-region-focusable").
+ */
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div
       data-slot="table-container"
-      className="relative w-full overflow-x-auto"
+      className="relative w-full"
     >
       <table
         data-slot="table"

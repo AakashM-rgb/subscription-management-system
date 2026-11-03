@@ -62,7 +62,7 @@ export function InvoiceDocument({ invoice: inv }: { invoice: Invoice }) {
       </section>
 
       <section className="py-6">
-        <div className="overflow-x-auto">
+        <div className="relative overflow-x-auto focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none" tabIndex={0} role="region" aria-label="Invoice lines">
           <table className="w-full min-w-[560px] text-sm">
             <caption className="sr-only">Invoice lines</caption>
             <thead>

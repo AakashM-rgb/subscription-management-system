@@ -30,7 +30,7 @@ const STEPS: { status: SubscriptionStatus; label: string }[] = [
 export function LifecycleStepper({ status }: { status: SubscriptionStatus }) {
   const current = STEPS.findIndex((s) => s.status === status);
   return (
-    <ol className="flex w-full items-center gap-1 overflow-x-auto" aria-label="Subscription lifecycle">
+    <ol className="relative flex w-full items-center gap-1 overflow-x-auto focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none" aria-label="Subscription lifecycle" tabIndex={0}>
       {STEPS.map((step, index) => {
         const done = index < current;
         const active = index === current;
@@ -164,7 +164,7 @@ export function LinesTable({
   caption: string;
 }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="relative overflow-x-auto focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none" tabIndex={0} role="region" aria-label={caption}>
       <Table className="min-w-[640px]">
         <caption className="sr-only">{caption}</caption>
         <TableHeader className="bg-muted/50">

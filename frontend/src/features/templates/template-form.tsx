@@ -17,6 +17,7 @@ import { planOption, termOption, usePaymentTermOptions, usePlanOptions, useProdu
 import type { QuotationTemplate } from "@/lib/api/types";
 import { BILLING_PERIOD_UNIT, formatMoney } from "@/lib/format";
 import { idString, intString, optionalMoneyString } from "@/lib/validation";
+import { useSingleFlight } from "@/lib/use-single-flight";
 
 const schema = z.object({
   name: z.string().trim().min(1, "Name is required").max(120),
@@ -64,6 +65,7 @@ export function TemplateForm({ template }: { template?: QuotationTemplate | null
   const products = useProductOptions();
   const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: toValues(template) });
   const lines = useFieldArray({ control: form.control, name: "lines" });
+  const singleFlight = useSingleFlight();
   const planId = useWatch({ control: form.control, name: "plan_id" });
   const plan = plans.data?.find((p) => String(p.id) === planId);
 
@@ -98,7 +100,7 @@ export function TemplateForm({ template }: { template?: QuotationTemplate | null
   }
 
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-6">
+    <form onSubmit={singleFlight(form.handleSubmit(onSubmit))} noValidate className="space-y-6">
       <Section title="Template">
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField control={form.control} name="name" label="Template name" required className="sm:col-span-2" placeholder="Enterprise yearly — 50 seats" />

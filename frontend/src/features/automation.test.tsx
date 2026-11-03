@@ -90,6 +90,24 @@ describe("collection attempts on an invoice", () => {
     expect(screen.queryByText("Payment failed")).not.toBeInTheDocument();
   });
 
+  it("refreshes the attempts when the invoice moves from pending to collected, so they never disagree", async () => {
+    let served = 0;
+    const responses = [
+      [attempt({ status: "processing", failure_code: null, failure_message: null, next_retry_at: null })],
+      [attempt({ status: "succeeded", failure_code: null, failure_message: null, next_retry_at: null })],
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify(responses[Math.min(served++, 1)]), { status: 200, headers: { "Content-Type": "application/json" } })),
+    );
+    const { rerenderApp } = renderWithApp(<CollectionPanel invoice={invoice({ collection_status: "pending" })} />);
+    expect(await screen.findByText("Processing")).toBeInTheDocument();
+    // The page's own invoice query (polling) now reports the collection as succeeded.
+    rerenderApp(<CollectionPanel invoice={invoice({ status: "paid", collection_status: "succeeded", payment_state: "paid" })} />);
+    expect(await screen.findByText("Succeeded")).toBeInTheDocument();
+    expect(screen.queryByText("Processing")).not.toBeInTheDocument();
+  });
+
   it("offers no manual collection while one is already in progress", async () => {
     mockApi([{ path: "/invoices/41/payment-attempts", body: [attempt({ status: "processing", failure_code: null, failure_message: null, next_retry_at: null })] }]);
     renderWithApp(<CollectionPanel invoice={invoice({ collection_status: "pending" })} />);

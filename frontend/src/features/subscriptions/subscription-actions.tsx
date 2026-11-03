@@ -130,7 +130,7 @@ const ACTIONS: Record<string, ActionSpec> = {
     title: "Generate invoices now?",
     description: () => (
       <p>
-        Draft invoices are created for every billing period that is already due. Periods that were billed before are never
+        Invoices are created for every billing period that is already due. Invoices of subscriptions with an active autopay mandate are confirmed automatically and collected through the saved payment method; all others stay as drafts for review. Periods that were billed before are never
         billed twice.
       </p>
     ),

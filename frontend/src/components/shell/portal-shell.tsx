@@ -15,13 +15,13 @@ export function PortalShell({ user, children }: { user: Me; children: ReactNode 
   const pathname = usePathname();
   return (
     <SessionProvider user={user}>
-      <div className="flex min-h-dvh flex-col pb-16 md:pb-0">
+      <div className="flex min-h-dvh flex-col pb-16 lg:pb-0">
         <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur" data-print="hide">
           <div className="mx-auto flex h-16 max-w-6xl items-center gap-6 px-4 sm:px-6">
             <Link href="/portal" className="rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring">
               <BrandName />
             </Link>
-            <nav aria-label="Portal" className="hidden flex-1 md:block">
+            <nav aria-label="Portal" className="hidden flex-1 lg:block">
               <ul className="flex items-center gap-1">
                 {PORTAL_NAV.map((item) => {
                   const active = isActive(pathname, item);
@@ -54,7 +54,7 @@ export function PortalShell({ user, children }: { user: Me; children: ReactNode 
 
         <nav
           aria-label="Portal"
-          className="fixed inset-x-0 bottom-0 z-20 border-t bg-background md:hidden"
+          className="fixed inset-x-0 bottom-0 z-20 border-t bg-background lg:hidden"
           data-print="hide"
         >
           <ul className="grid grid-cols-6">

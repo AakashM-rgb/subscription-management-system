@@ -14,6 +14,7 @@ import { FieldGroup } from "@/components/ui/field";
 import { api, ApiError } from "@/lib/api/client";
 import type { Body } from "@/lib/api/contract";
 import { passwordSchema } from "@/lib/validation";
+import { useSingleFlight } from "@/lib/use-single-flight";
 
 const schema = z
   .object({
@@ -31,6 +32,7 @@ export function ChangePasswordSection() {
     defaultValues: { current_password: "", new_password: "", confirm: "" },
     mode: "onTouched",
   });
+  const singleFlight = useSingleFlight();
   const password = useWatch({ control: form.control, name: "new_password" });
 
   async function onSubmit(v: Values) {
@@ -49,7 +51,7 @@ export function ChangePasswordSection() {
 
   return (
     <Section title="Change password" description="Changing your password signs you out on every other device.">
-      <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="max-w-md">
+      <form onSubmit={singleFlight(form.handleSubmit(onSubmit))} noValidate className="max-w-md">
         <FieldGroup className="gap-4">
           <TextField control={form.control} name="current_password" label="Current password" type="password" autoComplete="current-password" required />
           <div className="space-y-2">

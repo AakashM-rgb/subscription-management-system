@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { ChangePasswordSection } from "@/features/account/change-password";
 import { PaymentMethodsSection } from "@/features/portal/payment-methods";
 import { api } from "@/lib/api/client";
+import { useSingleFlight } from "@/lib/use-single-flight";
 import type { Body } from "@/lib/api/contract";
 import { useApiMutation, useResource } from "@/lib/api/hooks";
 import type { PortalProfile } from "@/lib/api/types";
@@ -31,6 +32,7 @@ type Values = z.infer<typeof schema>;
 
 export default function PortalProfilePage() {
   const profile = useResource<PortalProfile>(["portal", "profile"], "/portal/profile");
+  const singleFlight = useSingleFlight();
   const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: { name: "", phone: "", company_name: "", address: "", tax_id: "" } });
   useEffect(() => {
     if (profile.data)
@@ -66,7 +68,7 @@ export default function PortalProfilePage() {
       <Section title="Billing details" description="Copied onto each new invoice. Invoices already issued keep the details they were issued with.">
         <form
           noValidate
-          onSubmit={form.handleSubmit((v) => save.mutateAsync(v).catch((e) => applyServerErrors(e, form.setError, { fields: Object.keys(v) })))}
+          onSubmit={singleFlight(form.handleSubmit((v) => save.mutateAsync(v).catch((e) => applyServerErrors(e, form.setError, { fields: Object.keys(v) }))))}
           className="space-y-4"
         >
           <div className="grid gap-4 sm:grid-cols-2">

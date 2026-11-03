@@ -44,6 +44,8 @@ export function PaymentMethodsSection() {
     queryKey: ["portal", "payment-methods"],
     queryFn: () => api.get<Mandate[]>("/portal/payment-methods"),
     retry: false,
+    // A mandate waiting for the bank turns active (or fails) on its own: refresh while one is pending.
+    refetchInterval: (q) => (q.state.data?.some((m) => m.status === "pending") ? 8_000 : false),
   });
   const [adding, setAdding] = useState(false);
   const [methodType, setMethodType] = useState<"card" | "upi">("upi");

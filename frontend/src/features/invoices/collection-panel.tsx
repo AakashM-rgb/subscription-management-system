@@ -19,8 +19,11 @@ import { formatDateTime, formatMoney, humanize } from "@/lib/format";
 export function CollectionPanel({ invoice: inv }: { invoice: Invoice }) {
   const [confirming, setConfirming] = useState(false);
   const attempts = useQuery({
-    queryKey: ["invoices", "attempts", inv.id],
+    // The invoice's collection status is part of the key: when it changes (e.g. pending → succeeded after
+    // the provider's webhook) the attempts list is fetched again, so the two never contradict each other.
+    queryKey: ["invoices", "attempts", inv.id, inv.collection_status],
     queryFn: () => api.get<PaymentAttempt[]>(`/invoices/${inv.id}/payment-attempts`),
+    refetchInterval: inv.collection_status === "pending" ? 8_000 : false,
   });
   const collect = useApiMutation<void, PaymentAttempt>({
     mutationFn: () => api.post<PaymentAttempt>(`/invoices/${inv.id}/collect`),

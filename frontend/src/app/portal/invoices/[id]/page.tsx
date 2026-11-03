@@ -13,7 +13,10 @@ import type { Invoice } from "@/lib/api/types";
 
 export default function PortalInvoicePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const query = useResource<Invoice>(["portal", "invoice", id], `/portal/invoices/${id}`);
+  // An automatic payment is confirmed by the bank later: refresh while it is pending.
+  const query = useResource<Invoice>(["portal", "invoice", id], `/portal/invoices/${id}`, undefined, {
+    refetchInterval: (q) => (q.state.data?.collection_status === "pending" ? 8_000 : false),
+  });
   if (query.isPending) return <PageSkeleton />;
   if (query.error) return <ErrorState error={query.error} onRetry={() => query.refetch()} />;
   const inv = query.data;

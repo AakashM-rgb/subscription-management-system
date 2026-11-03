@@ -208,10 +208,11 @@ test("retry: pending until the provider confirms, then paid through the ledger",
   expect(processing, "a processing attempt after Retry now").toBeTruthy();
   await webhook(staff.request, "payment.captured", processing!);
 
-  await staff.reload();
+  // No reload: the open invoice page refreshes itself while a collection is pending (polls every 8s),
+  // so staff never keep looking at a stale "Collection pending".
+  await expect(staff.getByText("Collected").first()).toBeVisible({ timeout: 20_000 });
   inv = await apiCall(staff.request, "get", `/invoices/${ids.invoiceId}`);
   expect(inv).toMatchObject({ status: "paid", collection_status: "succeeded" });
-  await expect(staff.getByText("Collected").first()).toBeVisible();
   const attempts = staff.getByRole("heading", { name: "Collection" }).locator("xpath=ancestor::*[@data-slot='card']").getByRole("listitem");
   await expect(attempts.first()).toContainText("Succeeded");
   await staff.goto(`/console/invoices?status=paid`);

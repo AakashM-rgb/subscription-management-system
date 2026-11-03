@@ -106,7 +106,7 @@ export function UnappliedPaymentsAlert() {
               {formatMoney(p.amount)} via {humanize(p.provider)} ({p.provider_payment_id})
               {p.invoice_id ? (
                 <>
-                  {" "}for <TextLink href={`/console/invoices/${p.invoice_id}`}>invoice #{p.invoice_id}</TextLink>
+                  {" "}for <TextLink href={`/console/invoices/${p.invoice_id}`} className="underline">invoice #{p.invoice_id}</TextLink>
                 </>
               ) : null}{" "}
               — {humanize(p.reason)}

@@ -6,7 +6,7 @@ import {
   useReactTable,
   type ColumnDef,
 } from "@tanstack/react-table";
-import { ChevronLeft, ChevronRight, Search, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search, SearchX, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 
@@ -76,13 +76,26 @@ export function DataTable<T>({
   let body: ReactNode = null;
   if (isLoading) body = <TableSkeleton columns={Math.min(columns.length, 6)} />;
   else if (error && rows.length === 0) body = <ErrorState error={error} onRetry={onRetry} />;
+  else if (rows.length === 0 && pagination && total > 0)
+    body = (
+      <EmptyState
+        icon={SearchX}
+        title="That page doesn't exist"
+        description={`This list has ${formatNumber(Math.ceil(total / pagination.pageSize))} page(s), and page ${formatNumber(pagination.page)} is past the end. It may have shrunk since you last looked.`}
+        action={
+          <Button variant="outline" size="sm" onClick={() => pagination.onPageChange(Math.ceil(total / pagination.pageSize))}>
+            Go to the last page
+          </Button>
+        }
+      />
+    );
   else if (rows.length === 0)
     body = hasFilters ? <NoResults onClear={onClearFilters} /> : (empty ?? <EmptyState title="Nothing here yet" />);
 
   return (
     <div className="overflow-hidden rounded-xl border bg-card shadow-xs">
       {body ?? (
-        <div className="relative overflow-x-auto">
+        <div className="relative overflow-x-auto focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none" tabIndex={0} role="region" aria-label={`${caption} table`}>
           {isFetching ? (
             <div className="absolute top-2 right-3 z-10" aria-hidden>
               <InlineSpinner />
@@ -153,7 +166,7 @@ export function DataTable<T>({
           </Table>
         </div>
       )}
-      {pagination && total > 0 ? (
+      {pagination && total > 0 && rows.length > 0 ? (
         <PaginationBar
           page={pagination.page}
           pageSize={pagination.pageSize}

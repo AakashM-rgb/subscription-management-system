@@ -61,7 +61,7 @@ export default function SubscriptionDetailPage({ params }: { params: Promise<{ i
       </div>
 
       <Tabs defaultValue="billing" className="gap-4">
-        <TabsList>
+        <TabsList className="max-w-full justify-start overflow-x-auto">
           <TabsTrigger value="billing">
             <ReceiptText /> Billing history
           </TabsTrigger>

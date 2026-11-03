@@ -215,7 +215,7 @@ export function AdminDashboard() {
       <UnappliedPaymentsAlert />
       <KpiRow summary={summary} />
       <div className="grid gap-6 xl:grid-cols-3">
-        <div className="xl:col-span-2">
+        <div className="min-w-0 xl:col-span-2">
           <RevenueSection filters={{}} />
         </div>
         <SubscriptionsByStatusSection />
